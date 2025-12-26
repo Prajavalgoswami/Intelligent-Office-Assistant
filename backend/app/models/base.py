@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel,Field
 from bson import ObjectId
+from typing import Optional
+from datetime import datetime
 
 class PyObjectId(ObjectId):
     @classmethod
@@ -7,15 +9,25 @@ class PyObjectId(ObjectId):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *args, **kwargs):
+        if isinstance(v, ObjectId):
+            return v
         if not ObjectId.is_valid(v):
             raise ValueError("Invalid ObjectId")
         return ObjectId(v)
 
+    @classmethod
+    def __get_pydantic_json_schema__(cls, *args, **kwargs):
+        return {"type": "string"}
+
+
 class MongoBaseModel(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True
         arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+        json_encoders = {
+            ObjectId: str,
+            datetime: lambda dt: dt.isoformat()
+        }

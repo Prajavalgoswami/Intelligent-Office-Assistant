@@ -1,11 +1,13 @@
+# main.py
 from fastapi import FastAPI
-from app.routes import user_role_routes
+from core.database import ping_server
+
 app = FastAPI(title="Intelligent Office Assistant")
+
+@app.on_event("startup")
+async def startup():
+    await ping_server()
+
 @app.get("/")
-def root():
-    app.include_router(
-    user_role_routes.router,
-    prefix="/user-role",
-    tags=["User Role"]
-    )
-    return {"status": "Backend running"}
+async def root():
+    return {"message": "IOA Backend is running! 🎉"}

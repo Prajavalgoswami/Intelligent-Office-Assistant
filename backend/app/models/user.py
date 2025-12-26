@@ -1,12 +1,17 @@
-from pydantic import BaseModel
-from bson import ObjectId
+from .base import MongoBaseModel
+from typing import Optional
 from datetime import datetime
-
-class User(BaseModel):
-    company_id: ObjectId
-    department_id: ObjectId
+from pydantic import Field
+class User(MongoBaseModel):
+    company_id: str
     name: str
     email: str
-    oauth_id: str | None = None
-    joined_date: datetime = datetime.utcnow()
+    password: Optional[str] = None
+    oauth_id: Optional[str] = None
+    department_id: Optional[str] = None
+    joined_date: datetime = Field(default_factory=datetime.utcnow)
     status: str = "active"
+
+class UserRole(MongoBaseModel):
+    user_id: str
+    role_id: str

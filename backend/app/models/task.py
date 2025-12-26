@@ -1,10 +1,12 @@
-from pydantic import BaseModel
-from bson import ObjectId
+from .base import MongoBaseModel
+from typing import Optional
+from datetime import datetime
 
-class Task(BaseModel):
-    user_id: ObjectId
-    assigned_by: ObjectId
+class Task(MongoBaseModel):
+    user_id: str
+    assigned_by: Optional[str] = None
     title: str
-    deadline: datetime
+    description: Optional[str] = None
+    deadline: Optional[datetime] = None
     status: str = "pending"
-    priority: str
+    priority: Optional[str] = None  # low, medium, high

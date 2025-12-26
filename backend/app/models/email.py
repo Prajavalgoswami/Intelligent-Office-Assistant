@@ -1,11 +1,12 @@
-from pydantic import BaseModel
-from bson import ObjectId
-
-class Email(BaseModel):
-    user_id: ObjectId
+from .base import MongoBaseModel
+from typing import Optional
+from datetime import datetime
+from pydantic import Field
+class Email(MongoBaseModel):
+    user_id: str
     sender: str
-    subject: str
-    body: str
-    category: str
-    priority_score: float
-    received_time: datetime
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    category: Optional[str] = None
+    priority_score: Optional[float] = None
+    received_time: datetime = Field(default_factory=datetime.utcnow)

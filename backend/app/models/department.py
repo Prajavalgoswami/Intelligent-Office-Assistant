@@ -1,6 +1,6 @@
-from pydantic import BaseModel
+from .base import MongoBaseModel
 from bson import ObjectId
 
-class Department(BaseModel):
-    company_id: ObjectId
+class Department(MongoBaseModel):
+    company_id: str
     department_name: str

@@ -1,6 +1,6 @@
-from pydantic import BaseModel
 from bson import ObjectId
+from .base import MongoBaseModel
 
-class UserRole(BaseModel):
+class UserRole(MongoBaseModel):
     user_id: ObjectId
     role_id: ObjectId

@@ -1,6 +1,4 @@
-from pydantic import BaseModel
-from bson import ObjectId
-
-class RolePermission(BaseModel):
-    role_id: ObjectId
-    permission_id: ObjectId
+from .base import MongoBaseModel
+class RolePermission(MongoBaseModel):
+    role_id: str
+    permission_id: str

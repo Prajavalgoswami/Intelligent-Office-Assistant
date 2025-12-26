@@ -1,8 +1,10 @@
-from pydantic import BaseModel
+from .base import MongoBaseModel
+from typing import Optional
+from pydantic import Field
 from datetime import datetime
 
-class Company(BaseModel):
+class Company(MongoBaseModel):
     company_name: str
-    domain: str | None = None
-    status: str = "active"
-    created_at: datetime = datetime.utcnow()
+    domain: Optional[str] = None
+    status: str = "active"  # active / inactive
+    created_at: datetime = Field(default_factory=datetime.now)

@@ -1,6 +1,5 @@
-from pydantic import BaseModel
-from bson import ObjectId
+from .base import MongoBaseModel
 
-class Role(BaseModel):
-    company_id: ObjectId
-    role_name: str
+class Role(MongoBaseModel):
+    company_id: str
+    role_name: str  # Admin, Manager, Employee

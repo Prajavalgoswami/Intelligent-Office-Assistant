@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from .base import MongoBaseModel
 
-class Permission(BaseModel):
+class Permission(MongoBaseModel):
     permission_name: str
