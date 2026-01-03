@@ -30,7 +30,7 @@ document_embedding_collection = database.document_embeddings
 company_config_collection = database.company_configs
 super_admin_collection = database.super_admins
 
-# Optional: Health check function
+#Health check function
 async def get_database():
     return database
 
