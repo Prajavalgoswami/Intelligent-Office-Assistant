@@ -1,6 +1,6 @@
 from .base import MongoBaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime,timezone
 from pydantic import Field
 class User(MongoBaseModel):
     company_id: str
@@ -9,7 +9,7 @@ class User(MongoBaseModel):
     password: Optional[str] = None
     oauth_id: Optional[str] = None
     department_id: Optional[str] = None
-    joined_date: datetime = Field(default_factory=datetime.utcnow)
+    joined_date: datetime = Field(default_factory=datetime.now(timezone.utc))
     status: str = "active"
 
 class UserRole(MongoBaseModel):

@@ -1,13 +1,7 @@
-# main.py
 from fastapi import FastAPI
-from core.database import ping_server
-
+from app.super_admin.routes import router as super_admin_router
 app = FastAPI(title="Intelligent Office Assistant")
-
-@app.on_event("startup")
-async def startup():
-    await ping_server()
-
-@app.get("/")
-async def root():
-    return {"message": "IOA Backend is running! 🎉"}
+app.include_router(super_admin_router)
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
