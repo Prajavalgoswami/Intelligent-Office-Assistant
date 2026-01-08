@@ -12,8 +12,10 @@ class CompanyConfig(MongoBaseModel):
             "documents": True,
             "analytics": True,
             "collaboration": True,
-            "ai_assistant": True,
-            "voice": False
+            "office_chatbot": True,
+            # ENTERPRISE FEATURES
+            "broadcast": True,
+            "service_requests": True
         }
     )
     ui_theme: str = "light"

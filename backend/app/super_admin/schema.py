@@ -5,5 +5,8 @@ class SuperAdminLoginRequest(BaseModel):
     password: str
 
 class CreateCompanyRequest(BaseModel):
-    company_name:str
-    domain: Optional[str]=None
+    company_name: str
+    domain: Optional[str] = None
+
+    admin_name: str
+    admin_email: EmailStr

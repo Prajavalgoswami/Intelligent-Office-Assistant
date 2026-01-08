@@ -1,4 +1,5 @@
-from pydantic import BaseModel,Field
+from pydantic import BaseModel,Field, GetCoreSchemaHandler
+from pydantic_core import core_schema
 from bson import ObjectId
 from typing import Optional
 from datetime import datetime
@@ -20,7 +21,11 @@ class PyObjectId(ObjectId):
     def __get_pydantic_json_schema__(cls, *args, **kwargs):
         return {"type": "string"}
 
-
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source, handler: GetCoreSchemaHandler):
+        return core_schema.no_info_plain_validator_function(
+            lambda v: ObjectId(v)
+        )
 class MongoBaseModel(BaseModel):
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
 

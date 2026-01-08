@@ -1,5 +1,5 @@
 from fastapi import APIRouter,HTTPException, Depends
-from app.super_admin.auth import require_super_admin
+from app.auth.dependencies import require_super_admin
 from app.super_admin.schema import SuperAdminLoginRequest,CreateCompanyRequest
 from app.super_admin.service import login_super_admin,create_company
 router = APIRouter(prefix="/super-admin", tags=["Super Admin"])
