@@ -1,59 +1,85 @@
-from typing import Dict
+from bson import ObjectId
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
+
+from app.core.database import user_role_collection, role_collection
 from app.auth.jwt import decode_token
 
-security = HTTPBearer()
+bearer_scheme = HTTPBearer(auto_error=True)
 
-def require_super_admin(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    try:
-        token = credentials.credentials
-        payload = decode_token(token)
 
-        admin_id = payload.get("sub")
-        scope = payload.get("scope")
+# =========================
+# Base auth dependency
+# =========================
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
+):
+    token = credentials.credentials   # ✅ THIS IS THE FIX
 
-        if not admin_id or scope != "super_admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized as super admin"
-            )
-
-        return admin_id
-
-    except jwt.PyJWTError:
+    payload = decode_token(token)
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token"
         )
+
+    user_id = payload.get("sub")
+    company_id = payload.get("company_id")
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload"
+        )
+
+    return {
+        "user_id": user_id,
+        "company_id": company_id,
+        "scope": payload.get("scope")
+    }
+
+
+# =========================
+# Super Admin guard
+# =========================
+async def require_super_admin(
+    current_user=Depends(get_current_user)
+):
+    if current_user["scope"] != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required"
+        )
+
+    return current_user["user_id"]
+
+
+# =========================
+# Company Admin guard
+# =========================
 async def require_company_admin(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> Dict[str, str]:
-    try:
-        token = credentials.credentials
-        payload = decode_token(token)
+    current_user=Depends(get_current_user)
+):
+    admin_role = await role_collection.find_one({
+        "role_name": "Company Admin",
+        "scope": "SYSTEM"
+    })
 
-        scope = payload.get("scope")
-        if scope != "company_admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Company admin access required"
-            )
-
-        user_id = payload.get("sub")
-        company_id = payload.get("company_id")
-
-        if not user_id or not company_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid token: missing user or company context"
-            )
-
-        return {"user_id": user_id, "company_id": company_id}
-
-    except jwt.PyJWTError as e:
+    if not admin_role:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
+            status_code=500,
+            detail="Company Admin role not configured"
         )
+
+    has_role = await user_role_collection.find_one({
+        "user_id": ObjectId(current_user["user_id"]),
+        "role_id": admin_role["_id"]
+    })
+
+    if not has_role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Company Admin access required"
+        )
+
+    return current_user

@@ -3,6 +3,9 @@ from google.auth.transport import requests
 from fastapi import HTTPException, status
 from app.core.config import GOOGLE_CLIENT_ID
 
+from fastapi.security import HTTPBearer
+
+bearer_scheme = HTTPBearer(auto_error=True)
 def verify_google_token(token: str) -> dict:
     try:
         idinfo = id_token.verify_oauth2_token(

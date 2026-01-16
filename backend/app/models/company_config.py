@@ -10,8 +10,6 @@ class CompanyConfig(MongoBaseModel):
             "tasks": True,
             "chat": True,
             "documents": True,
-            "analytics": True,
-            "collaboration": True,
             "office_chatbot": True,
             # ENTERPRISE FEATURES
             "broadcast": True,

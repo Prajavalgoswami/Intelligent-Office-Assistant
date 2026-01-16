@@ -27,6 +27,7 @@ chat_message_collection = database.chat_messages
 document_collection = database.documents
 document_embedding_collection = database.document_embeddings
 
+company_settings_collection=database.company_settings
 company_config_collection = database.company_configs
 super_admin_collection = database.super_admins
 

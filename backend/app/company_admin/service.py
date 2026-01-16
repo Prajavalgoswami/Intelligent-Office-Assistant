@@ -1,10 +1,9 @@
-# app/company_admin/service.py
 from typing import Optional
 from bson import ObjectId
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, UploadFile, status
 from app.core.database import (
     user_collection, department_collection,
-    role_collection, user_role_collection
+    role_collection, user_role_collection,company_collection,company_settings_collection
 )
 from app.auth.password import generate_temp_password, hash_password, verify_password
 from app.auth.jwt import create_company_admin_token
@@ -13,7 +12,10 @@ from app.models.role import Role
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.models.department import Department
-
+from app.models.company_settings import CompanySettings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from sentence_transformers import SentenceTransformer
+import chromadb
 async def login_company_admin(email: str, password: str):
     user_doc = await user_collection.find_one({
         "email": email,
@@ -134,3 +136,33 @@ async def get_roles_service(company_id: str):
     async for doc in role_collection.find({"company_id": company_id}):
         roles.append(Role(**doc))
     return roles
+
+async def complete_onboarding_service(
+    user_id: str, company_id: str, services: str, policies_text: Optional[str],
+    policies_file: Optional[UploadFile], background_tasks: BackgroundTasks
+):
+    if not policies_text and not policies_file:
+        raise HTTPException(status_code=400, detail="Provide policies text or file")
+
+    if policies_file:
+        content = await policies_file.read()
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=content, filetype="pdf")
+        policies_text = "".join(page.get_text() for page in doc)
+
+    settings = CompanySettings(company_id=company_id, services_description=services, policies_text=policies_text)
+    await company_settings_collection.insert_one(settings.model_dump(by_alias=True))
+
+    background_tasks.add_task(embed_company_content, company_id, services + "\n" + policies_text)
+
+    await user_collection.update_one({"_id": ObjectId(user_id)}, {"$set": {"first_login": False}})
+    await company_collection.update_one({"_id": ObjectId(company_id)}, {"$set": {"onboarding_completed": True, "status": "ACTIVE"}})
+
+async def embed_company_content(company_id: str, content: str):
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = splitter.split_text(content)
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    embeddings = model.encode(chunks).tolist()
+    chroma = chromadb.Client()
+    collection = chroma.get_or_create_collection(name=f"company_{company_id}_embeddings")
+    collection.add(documents=chunks, embeddings=embeddings)
