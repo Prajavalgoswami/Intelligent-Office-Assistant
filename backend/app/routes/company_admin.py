@@ -4,15 +4,17 @@ from fastapi import (
 )
 from typing import Optional
 from bson import ObjectId
+from pydantic import BaseModel
 
 from app.auth.dependencies import require_company_admin
 from app.auth.jwt import create_company_admin_token
 from app.auth.google_auth import verify_google_token
 
-from app.company_admin.schema import (
+from app.auth.password import verify_password
+from app.schemas.company_admin import (
     RoleCreate, UserCreate, DepartmentCreate
 )
-from app.company_admin.service import (
+from app.services.company_admin import (
     create_department, create_role_service, create_user_service,
     get_departments_service, get_roles_service,
     complete_onboarding_service
@@ -23,9 +25,50 @@ from app.core.database import (
 )
 
 router = APIRouter(prefix="/company-admin", tags=["Company Admin"])
+class AdminIdPasswordLogin(BaseModel):
+    username: str
+    password: str
 
+
+@router.post("/login/admin-username-password")
+async def login_company_admin_with_username_and_password(
+    request: AdminIdPasswordLogin
+):
+    if not request.username.startswith("admin_"):
+        raise HTTPException(401, "Invalid username or password")
+
+    try:
+        oid_str = request.username[6:]
+        admin_oid = ObjectId(oid_str)
+    except:
+        raise HTTPException(401, "Invalid username or password")
+
+    admin = await user_collection.find_one({
+        "_id": admin_oid,
+        "status": "active"
+    })
+
+    if not admin or not verify_password(request.password, admin.get("password")):
+        raise HTTPException(401, "Invalid username or password")
+
+    admin_id = str(admin["_id"])
+    company_id = admin["company_id"]
+
+    # Company admin has fixed role
+    access_token = create_company_admin_token(
+        user_id=admin_id,
+        company_id=company_id
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+class GoogleLoginRequest(BaseModel):
+    token: str
 @router.post("/login/google")
-async def company_admin_google_login(token: str):
+async def company_admin_google_login(payload: GoogleLoginRequest):
+    token=payload.token
     google_user = verify_google_token(token)
     email = google_user["email"]
 
@@ -153,3 +196,22 @@ async def complete_onboarding(
     )
 
     return {"message": "Onboarding completed successfully"}
+
+@router.post("/users")
+async def create_user(
+    user_data: UserCreate,
+    admin = Depends(require_company_admin)
+):
+    try:
+        result = await create_user_service(
+            company_id=admin["company_id"],
+            user_data=user_data
+        )
+        return result
+    except HTTPException as e:
+        raise e  # Let FastAPI handle known exceptions
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create user: {str(e)}"
+        )

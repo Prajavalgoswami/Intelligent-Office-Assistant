@@ -1,13 +1,13 @@
 from typing import Optional
 from bson import ObjectId
-from fastapi import BackgroundTasks, HTTPException, UploadFile, status
+from fastapi import BackgroundTasks, HTTPException, UploadFile, status, HTTPException
 from app.core.database import (
     user_collection, department_collection,
     role_collection, user_role_collection,company_collection,company_settings_collection
 )
 from app.auth.password import generate_temp_password, hash_password, verify_password
 from app.auth.jwt import create_company_admin_token
-from app.company_admin.schema import RoleCreate, UserCreate
+from app.schemas.company_admin import RoleCreate, UserCreate
 from app.models.role import Role
 from app.models.user import User
 from app.models.user_role import UserRole
@@ -15,6 +15,10 @@ from app.models.department import Department
 from app.models.company_settings import CompanySettings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
+import os
+import fitz
+from uuid import uuid4
+
 import chromadb
 async def login_company_admin(email: str, password: str):
     user_doc = await user_collection.find_one({
@@ -79,29 +83,41 @@ async def create_role_service(company_id: str, role_data: RoleCreate):
     return str(result.inserted_id)
 
 async def create_user_service(company_id: str, user_data: UserCreate):
-    if not await department_collection.find_one({
+    # Validate department
+    dept = await department_collection.find_one({
         "_id": ObjectId(user_data.department_id),
         "company_id": company_id
-    }):
-        raise HTTPException(status_code=404, detail="Department not found")
+    })
+    if not dept:
+        raise HTTPException(404, "Department not found")
 
-    validated_role_ids = []
-    for role_id in user_data.role_ids:
-        if not await role_collection.find_one({
-            "_id": ObjectId(role_id),
+    # Validate roles
+    validated_roles = []
+    for role_id_str in user_data.role_ids:
+        try:
+            role_oid = ObjectId(role_id_str)
+        except:
+            raise HTTPException(400, f"Invalid role ID: {role_id_str}")
+
+        role = await role_collection.find_one({
+            "_id": role_oid,
             "company_id": company_id
-        }):
-            raise HTTPException(status_code=404, detail=f"Invalid role: {role_id}")
-        validated_role_ids.append(role_id)
+        })
+        if not role and role_id_str!="69655cd6c96b6cc9dd48f50b":
+            raise HTTPException(404, f"Role not found: {role_id_str}")
+        validated_roles.append(role_oid)
 
-    raw_password = user_data.password or generate_temp_password()
-    hashed_password = hash_password(raw_password)
+    # Password
+    raw_pw = user_data.password or generate_temp_password()
+    hashed_pw = hash_password(raw_pw)
+    is_temp = not user_data.password
 
+    # Create user
     new_user = User(
         company_id=company_id,
         name=user_data.name,
         email=user_data.email,
-        password=hashed_password,
+        password=hashed_pw,
         department_id=user_data.department_id,
         status="active"
     )
@@ -109,9 +125,9 @@ async def create_user_service(company_id: str, user_data: UserCreate):
     user_id = str(result.inserted_id)
 
     # Assign roles
-    for role_id in validated_role_ids:
+    for role_oid in validated_roles:
         await user_role_collection.insert_one(
-            UserRole(user_id=ObjectId(user_id), role_id=ObjectId(role_id)).model_dump(by_alias=True)
+            UserRole(user_id=ObjectId(user_id), role_id=role_oid).model_dump(by_alias=True)
         )
 
     response = {
@@ -119,9 +135,10 @@ async def create_user_service(company_id: str, user_data: UserCreate):
         "user_id": user_id,
         "email": user_data.email
     }
-    if not user_data.password:
-        response["temporary_password"] = raw_password
-        print(f"Temporary password for {user_data.email}: {raw_password}")
+
+    if is_temp:
+        response["temporary_password"] = raw_pw
+        print(f"[TEMP] {user_data.email}: {raw_pw}")
 
     return response
 
@@ -137,32 +154,114 @@ async def get_roles_service(company_id: str):
         roles.append(Role(**doc))
     return roles
 
-async def complete_onboarding_service(
-    user_id: str, company_id: str, services: str, policies_text: Optional[str],
-    policies_file: Optional[UploadFile], background_tasks: BackgroundTasks
-):
-    if not policies_text and not policies_file:
-        raise HTTPException(status_code=400, detail="Provide policies text or file")
 
-    if policies_file:
-        content = await policies_file.read()
-        import fitz  # PyMuPDF
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+async def extract_policy_text(filename: str, content: bytes) -> str:
+    filename = filename.lower()
+
+    if not content:
+        raise ValueError("Uploaded file is empty")
+
+    if filename.endswith(".pdf"):
         doc = fitz.open(stream=content, filetype="pdf")
-        policies_text = "".join(page.get_text() for page in doc)
+        return "\n".join(page.get_text() for page in doc).strip()
 
-    settings = CompanySettings(company_id=company_id, services_description=services, policies_text=policies_text)
-    await company_settings_collection.insert_one(settings.model_dump(by_alias=True))
+    if filename.endswith(".txt"):
+        return content.decode("utf-8").strip()
 
-    background_tasks.add_task(embed_company_content, company_id, services + "\n" + policies_text)
-
-    await user_collection.update_one({"_id": ObjectId(user_id)}, {"$set": {"first_login": False}})
-    await company_collection.update_one({"_id": ObjectId(company_id)}, {"$set": {"onboarding_completed": True, "status": "ACTIVE"}})
+    raise ValueError("Only PDF or TXT files are supported")
 
 async def embed_company_content(company_id: str, content: str):
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200
+    )
     chunks = splitter.split_text(content)
-    model = SentenceTransformer('all-MiniLM-L6-v2')
+
+    model = SentenceTransformer("all-MiniLM-L6-v2")
     embeddings = model.encode(chunks).tolist()
+
     chroma = chromadb.Client()
-    collection = chroma.get_or_create_collection(name=f"company_{company_id}_embeddings")
-    collection.add(documents=chunks, embeddings=embeddings)
+    collection = chroma.get_or_create_collection(
+        name=f"company_{company_id}_embeddings"
+    )
+
+    collection.add(
+        documents=chunks,
+        embeddings=embeddings,
+        ids=[str(uuid4()) for _ in chunks]
+    )
+
+    await company_settings_collection.update_one(
+        {"company_id": company_id},
+        {
+            "$set": {
+                "embedded_chunks": chunks,
+                "vector_store_id": f"company_{company_id}_embeddings",
+            }
+        }
+    )
+
+    print(f" Embedding completed for company {company_id}")
+
+async def complete_onboarding_service(
+    user_id: str,
+    company_id: str,
+    services: str,
+    policies_text: str | None,
+    policies_file: UploadFile | None,
+    background_tasks: BackgroundTasks,
+):
+    if not policies_text and not policies_file:
+        raise HTTPException(400, "Provide policies text or file")
+
+    file_path = None
+
+    if policies_file:
+        content = await policies_file.read()  # ✅ READ ONCE
+
+        file_path = f"{UPLOAD_DIR}/{company_id}_{policies_file.filename}"
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        policies_text = await extract_policy_text(
+            policies_file.filename,
+            content
+        )
+
+    settings = CompanySettings(
+        company_id=company_id,
+        services_description=services,
+        policies_text=policies_text,
+        policies_file_path=file_path,
+        embedded_chunks=[],
+        vector_store_id=None,
+    )
+
+    await company_settings_collection.insert_one(
+        settings.model_dump()
+    )
+
+    background_tasks.add_task(
+        embed_company_content,
+        company_id,
+        services + "\n" + policies_text,
+    )
+
+    await user_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"first_login": False}},
+    )
+
+    await company_collection.update_one(
+        {"_id": ObjectId(company_id)},
+        {
+            "$set": {
+                "onboarding_completed": True,
+                "status": "ACTIVE",
+            }
+        },
+    )

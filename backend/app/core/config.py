@@ -1,5 +1,5 @@
 import os
-MONGO_URL="your_mongo_uri"
+#MONGO_URL=ADD YOUR MONGO URI HERE
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 20

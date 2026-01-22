@@ -63,8 +63,8 @@ Pillow==10.4.0
 # NLP / Summarization (Offline)
 # -------------------------
 transformers==4.48.3
-torch==2.2.2
-sentencepiece==0.2.0
+torch>=2.6.0
+sentencepiece>=0.2.1
 huggingface-hub==0.30.2
 
 # -------------------------
@@ -85,8 +85,6 @@ uritemplate==4.2.0
 rsa==4.9.1
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
-<<<<<<< HEAD
-=======
 pydantic==2.12.5
 pydantic_core==2.41.5
 pymongo==4.15.5
@@ -109,4 +107,3 @@ email-validator==2.3.0
 passlib==1.7.4
 argon2-cffi==25.1.0
 motor==3.7.1
->>>>>>> e627ad12905587bbc34bc9c8ecc54f4f701a312e
