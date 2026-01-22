@@ -10,14 +10,24 @@ def create_super_admin_token(admin_id: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
-def create_company_admin_token(user_id: str, company_id: str) -> str:
+def create_user_token(user_id: str, company_id: str) -> str:
     payload = {
         "sub": user_id,
-        "scope": "company_admin",
+        "scope": "user",
         "company_id": company_id,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
+def create_company_admin_token(user_id: str, company_id: str, first_login: bool = False):
+    payload = {
+        "sub": user_id,
+        "company_id": company_id,
+        "scope": "company_admin",
+        "first_login": first_login,
+        "exp": datetime.utcnow() + timedelta(minutes=30)
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    
 def decode_token(token: str):
     return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
