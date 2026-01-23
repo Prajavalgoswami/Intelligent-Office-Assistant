@@ -48,14 +48,10 @@ async def create_company_service(
     company_id = str(result.inserted_id)
 
     #  Create default company config
-<<<<<<< HEAD
     config = CompanyConfig(
     company_id=company_id,
     enabled_features={feature: True for feature in enabled_features}
     )
-=======
-    config = CompanyConfig(company_id=company_id)
->>>>>>> e627ad12905587bbc34bc9c8ecc54f4f701a312e
     await company_config_collection.insert_one(
         config.model_dump(by_alias=True)
     )
