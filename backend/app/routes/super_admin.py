@@ -1,12 +1,12 @@
 # app/super_admin/routes.py
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from app.auth.dependencies import require_super_admin
-from app.super_admin.schema import (
+from app.schemas.super_admin import (
     SuperAdminLoginRequest,
     CreateCompanyRequest,
     CreateCompanyResponse
 )
-from app.super_admin.service import login_super_admin, create_company_service
+from app.services.super_admin import login_super_admin, create_company_service
 
 router = APIRouter(prefix="/super-admin", tags=["Super Admin"])
 

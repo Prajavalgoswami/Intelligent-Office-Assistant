@@ -63,8 +63,8 @@ Pillow==10.4.0
 # NLP / Summarization (Offline)
 # -------------------------
 transformers==4.48.3
-torch==2.2.2
-sentencepiece==0.2.0
+torch>=2.6.0
+sentencepiece>=0.2.1
 huggingface-hub==0.30.2
 
 # -------------------------
@@ -85,3 +85,25 @@ uritemplate==4.2.0
 rsa==4.9.1
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
+pydantic==2.12.5
+pydantic_core==2.41.5
+pymongo==4.15.5
+pyparsing==3.2.5
+python-dotenv==1.2.1
+python-multipart==0.0.21
+requests==2.32.5
+requests-oauthlib==2.0.0
+rsa==4.9.1
+sqlparse==0.5.3
+starlette==0.50.0
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+tzdata==2025.1
+uritemplate==4.2.0
+urllib3==2.3.0
+uvicorn==0.40.0
+PyJWT==2.10.1
+email-validator==2.3.0
+passlib==1.7.4
+argon2-cffi==25.1.0
+motor==3.7.1
