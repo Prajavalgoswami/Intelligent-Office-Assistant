@@ -39,10 +39,14 @@ def split_text(text: str, max_words: int) -> List[str]:
     return [
         " ".join(words[i:i + max_words])
         for i in range(0, len(words), max_words)
+        if words[i:i + max_words]
     ]
 
 
 def summarize_chunk(text: str, min_len: int, max_len: int) -> str:
+    if not text.strip():
+        return ""
+
     result = summarizer(
         text,
         max_length=max_len,
@@ -53,21 +57,25 @@ def summarize_chunk(text: str, min_len: int, max_len: int) -> str:
 
 
 # -----------------------------
-# INTRO HANDLING (CRITICAL FIX)
+# INTRO HANDLING (CRITICAL)
 # -----------------------------
 def extract_intro(text: str, max_words: int = 400) -> str:
-    """
-    Extract the introductory portion of the document.
-    Ensures context is never lost.
-    """
     words = text.split()
     return " ".join(words[:max_words])
 
 
+def remove_intro_from_text(text: str, intro_word_count: int = 400) -> str:
+    """
+    Prevent intro duplication in body summarization.
+    """
+    words = text.split()
+    return " ".join(words[intro_word_count:])
+
+
 def summarize_intro(intro_text: str) -> str:
-    """
-    Summarize the introduction separately to anchor context.
-    """
+    if not intro_text.strip():
+        return ""
+
     result = summarizer(
         intro_text,
         max_length=140,
@@ -86,21 +94,34 @@ def hierarchical_summarize(
 ) -> str:
     config = SUMMARY_CONFIG[summary_type]
 
-    # 🔹 STEP 1: INTRO (ALWAYS PRESERVED)
+    words = text.split()
+    if len(words) < 300:
+        # 🔹 Short document → single-pass summary
+        return summarize_chunk(
+            text,
+            config["min_len"],
+            config["max_len"]
+        )
+
+    # 🔹 STEP 1: INTRO (ANCHOR CONTEXT)
     intro_text = extract_intro(text)
     intro_summary = summarize_intro(intro_text)
 
-    # 🔹 STEP 2: MAIN BODY (hierarchical)
-    chunks = split_text(text, config["chunk_words"])
+    # 🔹 STEP 2: MAIN BODY (WITHOUT INTRO)
+    body_text = remove_intro_from_text(text)
+
+    chunks = split_text(body_text, config["chunk_words"])
     level_1 = [
         summarize_chunk(chunk, config["min_len"], config["max_len"])
         for chunk in chunks
+        if chunk.strip()
     ]
 
     grouped = split_text(" ".join(level_1), config["group_words"])
     level_2 = [
         summarize_chunk(group, config["min_len"], config["max_len"])
         for group in grouped
+        if group.strip()
     ]
 
     body_summary = "\n\n".join(level_2)

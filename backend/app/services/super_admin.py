@@ -120,3 +120,61 @@ async def create_default_roles(company_id: str):
     for name, priority in DEFAULT_ROLES:
         role = Role(company_id=company_id, role_name=name, priority=priority, is_default=True)
         await role_collection.insert_one(role.model_dump(by_alias=True))
+
+async def get_dashboard_stats():
+    """
+    Get dashboard statistics for super admin
+    """
+    from datetime import datetime, timedelta
+    
+    # Total companies
+    total_companies = await company_collection.count_documents({})
+    
+    # Active companies (created in last 30 days)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    active_companies = await company_collection.count_documents({
+        "created_at": {"$gte": thirty_days_ago}
+    })
+    
+    # Total users across all companies
+    total_users = await user_collection.count_documents({})
+    
+    # Active users (status = active)
+    active_users = await user_collection.count_documents({"status": "active"})
+    
+    # Recent companies (last 5)
+    recent_companies_cursor = company_collection.find().sort("created_at", -1).limit(5)
+    recent_companies = []
+    async for company in recent_companies_cursor:
+        recent_companies.append({
+            "id": str(company["_id"]),
+            "name": company.get("company_name", "Unknown"),
+            "domain": company.get("company_domain", ""),
+            "created_at": company.get("created_at", datetime.utcnow()).isoformat()
+        })
+    
+    # Company growth data (last 7 days)
+    growth_data = []
+    for i in range(6, -1, -1):
+        day = datetime.utcnow() - timedelta(days=i)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        
+        count = await company_collection.count_documents({
+            "created_at": {"$gte": day_start, "$lt": day_end}
+        })
+        
+        growth_data.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "count": count
+        })
+    
+    return {
+        "total_companies": total_companies,
+        "active_companies": active_companies,
+        "total_users": total_users,
+        "active_users": active_users,
+        "recent_companies": recent_companies,
+        "growth_data": growth_data,
+        "platform_health": "Operational" if total_companies > 0 else "No Companies"
+    }

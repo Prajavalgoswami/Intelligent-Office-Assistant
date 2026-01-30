@@ -1,4 +1,3 @@
-print("🔥 main.py start")
 from fastapi import FastAPI
 from app.routes.super_admin import router as super_admin_router
 from app.routes.company_admin import router as company_admin_router

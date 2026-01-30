@@ -6,7 +6,7 @@ from app.schemas.super_admin import (
     CreateCompanyRequest,
     CreateCompanyResponse
 )
-from app.services.super_admin import login_super_admin, create_company_service
+from app.services.super_admin import login_super_admin, create_company_service, get_dashboard_stats
 
 router = APIRouter(prefix="/super-admin", tags=["Super Admin"])
 
@@ -25,6 +25,15 @@ async def super_admin_login(data: SuperAdminLoginRequest):
             headers={"WWW-Authenticate": "Bearer"}
         )
     return {"access_token": token, "token_type": "bearer"}
+
+@router.get("/dashboard/stats")
+async def get_dashboard_statistics(admin_id: str = Depends(require_super_admin)):
+    """
+    Get dashboard statistics for super admin
+    Returns companies count, users count, and recent activity
+    """
+    stats = await get_dashboard_stats()
+    return stats
 
 @router.post("/companies", response_model=CreateCompanyResponse)
 async def create_company(
