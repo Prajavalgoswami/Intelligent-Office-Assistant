@@ -8,6 +8,11 @@ class User(MongoBaseModel):
     email: str
     password: Optional[str] = None
     oauth_id: Optional[str] = None
+
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+
     department_id: Optional[str] = None
     joined_date: datetime = Field(default_factory=datetime.utcnow)
     status: str = "active"

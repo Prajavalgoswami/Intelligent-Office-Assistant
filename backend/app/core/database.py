@@ -16,7 +16,7 @@ role_permission_collection = database.role_permissions
 user_collection = database.users
 user_role_collection = database.user_roles
 
-email_collection = database.emails
+email_collection = database.email
 task_collection = database.tasks
 meeting_collection = database.meetings
 
@@ -30,7 +30,15 @@ document_embedding_collection = database.document_embeddings
 company_config_collection = database.company_configs
 super_admin_collection = database.super_admins
 
+<<<<<<< Updated upstream
 # Optional: Health check function
+=======
+gmail_labels_collection = database.gmail_labels
+
+
+
+#Health check function
+>>>>>>> Stashed changes
 async def get_database():
     return database
 
