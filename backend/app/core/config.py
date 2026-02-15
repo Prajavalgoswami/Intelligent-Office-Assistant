@@ -1,6 +1,4 @@
-<<<<<<< Updated upstream
-MONGO_URI="mongodb+srv://IOA_DB:XEDatT0hsfgrTIFM@ioa.jikco8e.mongodb.net/?appName=IOA"
-=======
+
 import os
 MONGO_URL = "mongodb+srv://IOA_DB:XEDatT0hsfgrTIFM@ioa.jikco8e.mongodb.net/?appName=IOA"
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret")
@@ -31,4 +29,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
->>>>>>> Stashed changes
+
