@@ -16,7 +16,7 @@ role_permission_collection = database.role_permissions
 user_collection = database.users
 user_role_collection = database.user_roles
 
-email_collection = database.emails
+email_collection = database.email
 task_collection = database.tasks
 meeting_collection = database.meetings
 
@@ -31,7 +31,12 @@ company_settings_collection=database.company_settings
 company_config_collection = database.company_configs
 super_admin_collection = database.super_admins
 
+gmail_labels_collection = database.gmail_labels
+
+
+
 #Health check function
+
 async def get_database():
     return database
 

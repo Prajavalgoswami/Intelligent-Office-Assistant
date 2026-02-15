@@ -53,6 +53,25 @@ async def require_company_admin(
             detail="Company Admin role not configured"
         )
 
+
+#     print("JWT USER ID:", current_user["user_id"])
+
+#         admin_role = await role_collection.find_one({
+#           "role_name": "Company Admin",
+#           "scope": "SYSTEM"
+#         })
+
+#      print("ADMIN ROLE:", admin_role)
+
+#     all_roles = await user_role_collection.find(
+#        {"user_id": ObjectId(current_user["user_id"])}
+#     ).to_list(10)
+
+# print("ALL USER ROLES:", all_roles)
+
+
+
+
     has_role = await user_role_collection.find_one({
         "user_id": ObjectId(current_user["user_id"]),
         "role_id": admin_role["_id"]
