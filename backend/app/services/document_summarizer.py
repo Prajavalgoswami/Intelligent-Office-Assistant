@@ -1,6 +1,8 @@
 from transformers import pipeline
-from typing import List, Literal
-
+from typing import List
+from concurrent.futures import ThreadPoolExecutor
+import torch
+torch.set_num_threads(6)    
 # 🔥 Load model once
 summarizer = pipeline(
     "summarization",
@@ -12,20 +14,17 @@ summarizer = pipeline(
 # -----------------------------
 SUMMARY_CONFIG = {
     "brief": {
-        "chunk_words": 550,
-        "group_words": 650,
+        "chunk_words": 650,
         "min_len": 60,
         "max_len": 120,
     },
     "normal": {
-        "chunk_words": 450,
-        "group_words": 500,
+        "chunk_words": 650,
         "min_len": 100,
         "max_len": 200,
     },
     "detailed": {
-        "chunk_words": 350,
-        "group_words": 450,
+        "chunk_words": 550,
         "min_len": 150,
         "max_len": 280,
     },
@@ -47,17 +46,48 @@ def summarize_chunk(text: str, min_len: int, max_len: int) -> str:
     if not text.strip():
         return ""
 
-    result = summarizer(
-        text,
-        max_length=max_len,
-        min_length=min_len,
-        do_sample=False
-    )
-    return result[0]["summary_text"]
+    try:
+        with torch.inference_mode():
+            result = summarizer(
+                text,
+                max_length=max_len,
+                min_length=min_len,
+                do_sample=False,
+                truncation=True  # 🔥 IMPORTANT
+            )
+
+        if not result or "summary_text" not in result[0]:
+            return ""
+
+        return result[0]["summary_text"]
+
+    except Exception:
+        return ""
 
 
 # -----------------------------
-# INTRO HANDLING (CRITICAL)
+# 🔥 Parallel chunk processing
+# -----------------------------
+def parallel_summarize_chunks(
+    chunks: List[str],
+    min_len: int,
+    max_len: int,
+    max_workers: int = 4
+) -> List[str]:
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(
+            executor.map(
+                lambda chunk: summarize_chunk(chunk, min_len, max_len),
+                chunks
+            )
+        )
+
+    return results
+
+
+# -----------------------------
+# Intro handling
 # -----------------------------
 def extract_intro(text: str, max_words: int = 400) -> str:
     words = text.split()
@@ -65,9 +95,6 @@ def extract_intro(text: str, max_words: int = 400) -> str:
 
 
 def remove_intro_from_text(text: str, intro_word_count: int = 400) -> str:
-    """
-    Prevent intro duplication in body summarization.
-    """
     words = text.split()
     return " ".join(words[intro_word_count:])
 
@@ -86,55 +113,44 @@ def summarize_intro(intro_text: str) -> str:
 
 
 # -----------------------------
-# HIERARCHICAL SUMMARIZATION
+# Hierarchical summarization
 # -----------------------------
-def hierarchical_summarize(
-    text: str,
-    summary_type: Literal["brief", "normal", "detailed"] = "normal"
-) -> str:
-    config = SUMMARY_CONFIG[summary_type]
+def hierarchical_summarize(text: str, summary_type: str = "normal") -> str:
 
+    config = SUMMARY_CONFIG.get(summary_type, SUMMARY_CONFIG["normal"])
     words = text.split()
-    if len(words) < 300:
-        # 🔹 Short document → single-pass summary
+
+    # Short document → single pass
+    if len(words) < 400:
         return summarize_chunk(
             text,
             config["min_len"],
             config["max_len"]
         )
 
-    # 🔹 STEP 1: INTRO (ANCHOR CONTEXT)
+    # STEP 1: Intro
     intro_text = extract_intro(text)
     intro_summary = summarize_intro(intro_text)
 
-    # 🔹 STEP 2: MAIN BODY (WITHOUT INTRO)
+    # STEP 2: Body
     body_text = remove_intro_from_text(text)
-
     chunks = split_text(body_text, config["chunk_words"])
-    level_1 = [
-        summarize_chunk(chunk, config["min_len"], config["max_len"])
-        for chunk in chunks
-        if chunk.strip()
-    ]
+    chunks = [c for c in chunks if c.strip()]
 
-    grouped = split_text(" ".join(level_1), config["group_words"])
-    level_2 = [
-        summarize_chunk(group, config["min_len"], config["max_len"])
-        for group in grouped
-        if group.strip()
-    ]
+    # 🔥 Parallel level 1 summarization
+    level_1 = parallel_summarize_chunks(
+        chunks,
+        config["min_len"],
+        config["max_len"]
+    )
 
-    body_summary = "\n\n".join(level_2)
+    body_summary = "\n\n".join(level_1)
 
-    # 🔹 STEP 3: FINAL STRUCTURED SUMMARY
     return intro_summary + "\n\n" + body_summary
 
 
 # -----------------------------
-# PUBLIC API
+# Public API
 # -----------------------------
-def summarize_text(
-    text: str,
-    summary_type: Literal["brief", "normal", "detailed"] = "normal"
-) -> str:
+def summarize_text(text: str, summary_type: str = "normal") -> str:
     return hierarchical_summarize(text, summary_type)

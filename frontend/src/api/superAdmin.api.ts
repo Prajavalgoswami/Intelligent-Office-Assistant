@@ -14,9 +14,32 @@ export interface CreateCompanyResponse {
   message: string;
 }
 
+export interface DashboardStats {
+  total_companies: number;
+  active_companies: number;
+  total_users: number;
+  active_users: number;
+  recent_companies: Array<{
+    id: string;
+    name: string;
+    domain: string;
+    created_at: string;
+  }>;
+  growth_data: Array<{
+    date: string;
+    count: number;
+  }>;
+  platform_health: string;
+}
+
 export const createCompany = async (
   payload: CreateCompanyPayload
 ): Promise<CreateCompanyResponse> => {
   const { data } = await api.post("/super-admin/companies", payload);
+  return data;
+};
+
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+  const { data } = await api.get("/super-admin/dashboard/stats");
   return data;
 };

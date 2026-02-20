@@ -9,10 +9,14 @@ import RequireSuperAdmin from "../auth/RequireSuperAdmin";
 
 /* Company Admin */
 import { AdminLoginPage } from "../pages/company-admin/Login";
-import {CompanyAdminDashboard} from "../pages/company-admin/Dashboard";
-import {CompanyOnboardingPage} from "../pages/company-admin/Onboarding";
-import CompanyAdminLayout from "../layouts/AppLayout";
+import { CompanyAdminDashboard } from "../pages/company-admin/Dashboard";
+import { CompanyOnboardingPage } from "../pages/company-admin/Onboarding";
+import { Departments } from "../pages/company-admin/Departments";
+import { Roles } from "../pages/company-admin/Roles";
+import { Users } from "../pages/company-admin/Users";
+import { DashboardLayoutWithOutlet } from "../layouts/DashboardLayoutWithOutlet";
 import CompanyAdminGuard from "../auth/CompanyAdminGuard";
+import OnboardingGuard from "../auth/OnboardingGuard";
 
 export default function AppRoutes() {
   return (
@@ -20,8 +24,7 @@ export default function AppRoutes() {
       {/* Entry */}
       <Route path="/" element={<Navigate to="/login" replace />} />
 
-      /* ---------------- SUPER ADMIN ---------------- */
-
+      {/* SUPER ADMIN */}
       <Route path="/login" element={<Login />} />
 
       <Route
@@ -36,18 +39,19 @@ export default function AppRoutes() {
         <Route path="create-company" element={<CreateCompany />} />
       </Route>
 
-      /* ---------------- COMPANY ADMIN ---------------- */
-
+      {/* COMPANY ADMIN */}
       <Route path="/company-admin/login" element={<AdminLoginPage />} />
 
       <Route path="/company-admin" element={<CompanyAdminGuard />}>
-      <Route element={<CompanyAdminLayout />}>
-      <Route index element={<CompanyAdminDashboard />} />
-      <Route path="onboarding" element={<CompanyOnboardingPage />} />
-      </Route>
-
-      <Route index element={<CompanyAdminDashboard />} />
-      <Route path="onboarding" element={<CompanyOnboardingPage />} />
+        <Route element={<OnboardingGuard />}>
+          <Route path="onboarding" element={<CompanyOnboardingPage />} />
+        </Route>
+        <Route element={<DashboardLayoutWithOutlet />}>
+          <Route index element={<CompanyAdminDashboard />} />
+          <Route path="departments" element={<Departments />} />
+          <Route path="roles" element={<Roles />} />
+          <Route path="users" element={<Users />} />
+        </Route>
       </Route>
 
       {/* Fallback */}

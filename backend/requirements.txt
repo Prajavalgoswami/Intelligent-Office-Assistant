@@ -9,7 +9,7 @@ h11==0.16.0
 asgiref==3.8.1
 click==8.3.1
 colorama==0.4.6
-
+websockets
 # -------------------------
 # Data Validation & Typing
 # -------------------------
