@@ -1,0 +1,110 @@
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+
+from app.core.config import settings
+from app.core.database import user_collection
+
+
+class GmailService:
+
+    def __init__(self, user: dict):
+        """
+        user: MongoDB user document
+        Must contain:
+        - access_token
+        - refresh_token
+        - _id
+        """
+        self.user = user
+        self.service = None
+
+    async def create_service(self):
+        """
+        Create Gmail service and refresh token if needed
+        """
+
+        credentials = Credentials(
+            token=self.user.get("access_token"),
+            refresh_token=self.user.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=settings.GOOGLE_CLIENT_ID,
+            client_secret=settings.GOOGLE_CLIENT_SECRET,
+            scopes=["https://www.googleapis.com/auth/gmail.modify"],
+        )
+
+        # Refresh token if expired
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+
+            # Save updated access token
+            await user_collection.update_one(
+                {"_id": self.user["_id"]},
+                {"$set": {"access_token": credentials.token}}
+            )
+
+        self.service = build("gmail", "v1", credentials=credentials)
+        return self.service
+
+    async def create_label_if_not_exists(self, label_name: str):
+
+        from app.core.database import gmail_labels_collection
+
+        # Check DB first
+        existing = await gmail_labels_collection.find_one({
+            "user_id": self.user["_id"],
+            "label_name": label_name
+        })
+
+        if existing:
+            return existing["label_id"]
+
+        # Check Gmail
+        results = self.service.users().labels().list(userId="me").execute()
+        labels = results.get("labels", [])
+
+        for label in labels:
+            if label["name"].lower() == label_name.lower():
+                label_id = label["id"]
+
+                await gmail_labels_collection.insert_one({
+                    "user_id": self.user["_id"],
+                    "label_name": label_name,
+                    "label_id": label_id
+                })
+
+                return label_id
+
+        # Create new label
+        label_object = {
+            "name": label_name,
+            "labelListVisibility": "labelShow",
+            "messageListVisibility": "show"
+        }
+
+        created_label = self.service.users().labels().create(
+            userId="me",
+            body=label_object
+        ).execute()
+
+        label_id = created_label["id"]
+
+        await gmail_labels_collection.insert_one({
+            "user_id": self.user["_id"],
+            "label_name": label_name,
+            "label_id": label_id
+        })
+
+        return label_id
+
+    async def apply_label_to_email(self, message_id: str, label_id: str):
+
+        self.service.users().messages().modify(
+            userId="me",
+            id=message_id,
+            body={
+                "addLabelIds": [label_id]
+            }
+        ).execute()
+
+        return True
