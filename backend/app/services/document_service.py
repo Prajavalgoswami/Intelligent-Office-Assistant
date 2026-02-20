@@ -1,3 +1,4 @@
+
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime
 import os
@@ -61,3 +62,10 @@ async def increment_usage(document_id):
             "$set": {"updated_at": datetime.utcnow()}
         }
     )
+
+async def handle_document_qa(message, user):
+    return {
+        "type": "doc_answer",
+        "response": "The leave policy allows 12 annual leaves."
+    }
+
