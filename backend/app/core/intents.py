@@ -4,9 +4,11 @@ from enum import Enum
 
 
 class Intent(str, Enum):
-    TASK_QUERY = "TASK_QUERY"
-    MEETING_QUERY = "MEETING_QUERY"
-    MEETING_CREATE = "MEETING_CREATE"
-    EMAIL_SUMMARY = "EMAIL_SUMMARY"
-    DOC_QA = "DOC_QA"
-    UNKNOWN = "UNKNOWN"
+    MEETING_CREATE = "meeting_create"
+    MEETING_QUERY = "meeting_query"
+    TASK_CREATE = "task_create"
+    TASK_QUERY = "task_query"
+    EMAIL_SUMMARY = "email_summary"
+    DOC_QA = "doc_qa"
+    UNKNOWN = "unknown"
+   

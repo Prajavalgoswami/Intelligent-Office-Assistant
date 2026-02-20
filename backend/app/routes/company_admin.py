@@ -303,7 +303,8 @@ import base64
 from email.utils import parsedate_to_datetime
 from fastapi import Depends
 from bson import ObjectId
-from app.services.email_classifier_service import EmailClassifierService
+from app.services.ai_classifier import classify_email
+
 
 @router.get("/gmail/full-messages")
 async def fetch_full_email_details(
@@ -385,9 +386,9 @@ async def fetch_full_email_details(
 
         # ✅ CLASSIFY EMAIL
         
-
-        classifier = EmailClassifierService()
-        category = await classifier.classify(subject, body)
+   
+        from app.services.ai_classifier import classify_email
+        category = classify_email(subject, body)
 
 
         # ✅ GET LABEL ID FROM DB

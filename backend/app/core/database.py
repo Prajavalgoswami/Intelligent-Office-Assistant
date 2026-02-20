@@ -33,6 +33,9 @@ super_admin_collection = database.super_admins
 
 gmail_labels_collection = database.gmail_labels
 
+calendar_reminder_collection = database.calendar_reminders
+
+
 
 
 #Health check function

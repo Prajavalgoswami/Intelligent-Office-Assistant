@@ -1,5 +1,5 @@
 from googleapiclient.discovery import build
-from app.auth.google_auth import load_credentials
+from app.auth.google_auth import load_user_credentials
 
 
 class CalendarService:
@@ -8,15 +8,10 @@ class CalendarService:
     using OAuth credentials.
     """
 
-    def __init__(self):
-        # Load OAuth credentials from token.json
-        creds = load_credentials()
-
-        # If user has not connected Google account
+    def __init__(self, creds):
         if not creds:
             raise Exception("Google account not connected")
 
-        # Build Google Calendar API client
         self.service = build(
             "calendar",
             "v3",

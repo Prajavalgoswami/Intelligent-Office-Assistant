@@ -70,18 +70,47 @@ def get_auth_flow():
         redirect_uri="http://localhost:8000/auth/google/callback"
     )
 
-def save_credentials(credentials: Credentials):
-    """
-    Saves OAuth access & refresh tokens to token.json
-    """
-    with open(TOKEN_FILE, "w") as token:
-        token.write(credentials.to_json())
+# def save_credentials(credentials: Credentials):
+#     """
+#     Saves OAuth access & refresh tokens to token.json
+#     """
+#     with open(TOKEN_FILE, "w") as token:
+#         token.write(credentials.to_json())
 
-def load_credentials():
-    """
-    Loads OAuth credentials from token.json if available.
-    Used by CalendarService and TaskService.
-    """
-    if os.path.exists(TOKEN_FILE):
-        return Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-    return None
+# def load_credentials():
+#     """
+#     Loads OAuth credentials from token.json if available.
+#     Used by CalendarService and TaskService.
+#     """
+#     if os.path.exists(TOKEN_FILE):
+#         return Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+#     return None
+
+from app.core.database import user_collection
+from bson import ObjectId
+from google.oauth2.credentials import Credentials
+
+async def load_user_credentials(user_id: str):
+    user = await user_collection.find_one(
+        {"_id": ObjectId(user_id)}
+    )
+
+    if not user:
+        return None
+
+    access_token = user.get("access_token")
+    refresh_token = user.get("refresh_token")
+
+    if not access_token or not refresh_token:
+        return None
+
+    creds = Credentials(
+        token=access_token,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.getenv("GOOGLE_CLIENT_ID"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+        scopes=SCOPES
+    )
+
+    return creds

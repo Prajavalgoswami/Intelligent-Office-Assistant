@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.datetime_extractor import extract_datetime, extract_time_only
 from app.nlp.datetime_nlp import nlp_extract_datetime
@@ -8,27 +8,28 @@ from app.services.conversation_memory import (
     clear_user_state
 )
 from app.services.calendar_service import CalendarService
+from app.models import user
+from app.auth.google_auth import load_user_credentials
 
 
 # ================================
 # CREATE MEETING
 # ================================
 async def handle_meeting_create(message: str, user: dict):
-    user_id = user["id"]
 
-    # 1️⃣ Load conversation memory
+    user_id = user["id"]
     state = get_user_state(user_id)
 
-    # 2️⃣ Rule-based extraction
+    # 🔥 Always attempt extraction
     dt = extract_datetime(message)
 
-    # # 🔹 Handle time-only input ("4 pm")
+    # Time only input
     if not dt:
         time_only = extract_time_only(message)
         if time_only:
             dt = {"time": time_only}
 
-    # 3️⃣ NLP fallback
+    # NLP fallback
     if not dt or dt.get("time") == "00:00":
         nlp_dt = nlp_extract_datetime(message)
         if nlp_dt:
@@ -37,7 +38,7 @@ async def handle_meeting_create(message: str, user: dict):
             else:
                 dt = nlp_dt
 
-    # 4️⃣ Merge extracted slots into memory
+    # 🔥 Merge with previous state
     if dt:
         if "date" in dt:
             state["date"] = dt["date"]
@@ -46,23 +47,28 @@ async def handle_meeting_create(message: str, user: dict):
 
         update_user_state(user_id, state)
 
-    # 5️⃣ Ask for missing date
+    # 🔥 If no date yet
     if "date" not in state:
+        state["meeting_in_progress"] = True
+        update_user_state(user_id, state)
+
         return {
             "type": "clarification",
             "response": "Sure 🙂 Which date should I schedule the meeting?"
         }
 
-    # 6️⃣ Ask for missing time
+    # 🔥 If no time yet
     if "time" not in state or state["time"] == "00:00":
+        state["meeting_in_progress"] = True
+        update_user_state(user_id, state)
+
         return {
             "type": "clarification",
             "response": f"I got the date ({state['date']}). What time works for you?"
         }
+    
 
-    # ================================
-    # 7️⃣ All slots filled → create event
-    # ================================
+    # 🔥 Now both available → create meeting
     try:
         start_dt = datetime.strptime(
             f"{state['date']} {state['time']}",
@@ -70,20 +76,23 @@ async def handle_meeting_create(message: str, user: dict):
         )
         end_dt = start_dt + timedelta(minutes=30)
 
-        calendar_service = CalendarService()
+        meeting_title = extract_meeting_title(message)
+
+        creds = await load_user_credentials(user["id"])
+        calendar_service = CalendarService(creds)
+
         calendar_service.create_event(
-            title="Meeting",
+            title=meeting_title,
             start_dt=start_dt,
             end_dt=end_dt
         )
 
-    except Exception as e:
+    except Exception:
         return {
             "type": "error",
-            "response": "⚠️ Google Calendar is not connected. Please connect it first."
+            "response": "⚠️ Google Calendar is not connected."
         }
 
-    # 8️⃣ Clear memory after success
     clear_user_state(user_id)
 
     return {
@@ -95,28 +104,67 @@ async def handle_meeting_create(message: str, user: dict):
         }
     }
 
+import re
+
+def extract_meeting_title(message: str) -> str:
+
+    text = message.lower()
+
+    # Pattern 1: meeting with someone
+    match = re.search(
+        r"meeting with ([a-zA-Z\s]+?)(?:\s+(today|tomorrow|next|at|on|after)\b|$)",
+        text
+    )
+
+    if match:
+        return f"Meeting with {match.group(1).title()}"
+
+    # Pattern 2: meeting <topic> with <team>
+    match = re.search(
+        r"meeting ([a-zA-Z\s]+?) with ([a-zA-Z\s]+?)(?:\s+(today|tomorrow|next|at|on|after)\b|$)",
+        text
+    )
+
+    if match:
+        topic = match.group(1).strip()
+        group = match.group(2).strip()
+        return f"{topic.title()} with {group.title()}"
+
+    # Pattern 3: generic topic
+    match = re.search(
+        r"(strategy|discussion|review|planning|sync|standup|demo)",
+        text
+    )
+
+    if match:
+        return f"{match.group(1).title()} Meeting"
+
+    return "Meeting"
+
+
+
 
 # ================================
 # QUERY MEETINGS
 # ================================
+from datetime import datetime
+from app.auth.google_auth import load_user_credentials
+
+
 async def handle_meeting_query(message: str, user: dict):
-    """
-    Fetch meetings from Google Calendar based on user query.
-    """
 
     text = message.lower()
 
-    # 🔹 Decide response tone based on user words
-    if any(word in text for word in ["all", "every"]):
-        header = "📅 Here are all your meetings:"
-    elif any(word in text for word in ["next", "upcoming"]):
-        header = "📅 Here are your upcoming meetings:"
-    else:
-        header = "📅 Here are your meetings:"
-
     try:
-        calendar_service = CalendarService()
-        events = calendar_service.list_upcoming_events(max_results=10)
+        creds = await load_user_credentials(user["id"])
+        calendar_service = CalendarService(creds)
+
+        events = calendar_service.service.events().list(
+            calendarId="primary",
+            singleEvents=True,
+            orderBy="startTime"
+        ).execute().get("items", [])
+
     except Exception:
         return {
             "type": "error",
@@ -126,24 +174,64 @@ async def handle_meeting_query(message: str, user: dict):
     if not events:
         return {
             "type": "info",
-            "response": "📭 You have no meetings."
+            "response": "📭 No meetings found."
         }
 
-    response_lines = [header]
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    filtered_events = []
 
     for event in events:
         start = event["start"].get("dateTime") or event["start"].get("date")
 
         try:
-            start_dt = datetime.fromisoformat(start.replace("Z", ""))
-            start_str = start_dt.strftime("%d %b %Y, %I:%M %p")
+            start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
         except Exception:
-            start_str = start
+            continue
 
-        title = event.get("summary", "Meeting")
-        response_lines.append(f"- {title} at {start_str}")
+        # 🔥 FILTER LOGIC
+        if "upcoming" in text or "next" in text:
+            if start_dt >= now:
+                filtered_events.append((event, start_dt))
+
+        elif "past" in text:
+            if start_dt < now:
+                filtered_events.append((event, start_dt))
+
+        elif "today" in text:
+            if start_dt.date() == now.date():
+                filtered_events.append((event, start_dt))
+
+        else:
+            # default → upcoming only
+            if start_dt >= now:
+                filtered_events.append((event, start_dt))
+
+    if not filtered_events:
+        return {
+            "type": "info",
+            "response": "📭 No matching meetings found."
+        }
+
+    # Title based on query
+    if "past" in text:
+        title = "📅 Past Meetings"
+    elif "today" in text:
+        title = "📅 Today's Meetings"
+    elif "all" in text:
+        title = "📅 All Meetings"
+    else:
+        title = "📅 Upcoming Meetings"
+
+    lines = [title]
+
+    for event, start_dt in filtered_events:
+        formatted_time = start_dt.strftime("%d %b %Y, %I:%M %p")
+        summary = event.get("summary", "No Title")
+        lines.append(f"- {summary} at {formatted_time}")
 
     return {
         "type": "info",
-        "response": "\n".join(response_lines)
+        "response": "\n".join(lines)
     }
