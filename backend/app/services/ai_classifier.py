@@ -1,9 +1,9 @@
 import os
-from google import genai
+import google.generativeai as genai # pyright: ignore[reportMissingImports]
 
 # Create Gemini client
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-pro")
 ALLOWED = ["Work", "Urgent", "Finance", "Notifications"]
 
 
