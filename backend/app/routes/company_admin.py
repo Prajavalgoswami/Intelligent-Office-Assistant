@@ -23,6 +23,7 @@ from app.services.company_admin import (
 from app.core.database import (
     user_collection, user_role_collection, role_collection
 )
+from app.core.database import department_collection
 
 
 
@@ -155,6 +156,77 @@ async def list_departments(
 ):
     return await get_departments_service(admin["company_id"])
 
+
+@router.get("/departments/{department_id}/members")
+async def list_department_members(
+    department_id: str,
+    admin=Depends(require_company_admin)
+):
+    """
+    Return members of a department (for the company-admin UI drill-in).
+    """
+    try:
+        dept_oid = ObjectId(department_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid department id")
+
+    dept = await department_collection.find_one(
+        {"_id": dept_oid, "company_id": admin["company_id"]}
+    )
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    users = await user_collection.find(
+        {
+            "company_id": admin["company_id"],
+            "department_id": department_id,
+            "status": "active",
+        },
+        {"_id": 1, "name": 1, "email": 1},
+    ).to_list(500)
+
+    member_ids = [u["_id"] for u in users]
+    roles_by_user: dict[str, list[str]] = {}
+    if member_ids:
+        # user_roles store ObjectIds for user_id and role_id
+        cursor = user_role_collection.find({"user_id": {"$in": member_ids}})
+        role_ids: set[ObjectId] = set()
+        user_to_role_ids: dict[str, list[ObjectId]] = {}
+        async for ur in cursor:
+            uid = str(ur["user_id"])
+            rid = ur["role_id"]
+            role_ids.add(rid)
+            user_to_role_ids.setdefault(uid, []).append(rid)
+
+        role_name_map: dict[str, str] = {}
+        if role_ids:
+            async for r in role_collection.find({"_id": {"$in": list(role_ids)}}):
+                role_name_map[str(r["_id"])] = r.get("role_name", str(r["_id"]))
+
+        for uid, rids in user_to_role_ids.items():
+            roles_by_user[uid] = [role_name_map.get(str(rid), str(rid)) for rid in rids]
+
+    members = []
+    for u in users:
+        uid = str(u["_id"])
+        members.append(
+            {
+                "user_id": uid,
+                "name": u.get("name", ""),
+                "email": u.get("email", ""),
+                "roles": roles_by_user.get(uid, []),
+            }
+        )
+
+    return {
+        "department": {
+            "id": department_id,
+            "department_name": dept.get("department_name"),
+            "description": dept.get("description", ""),
+        },
+        "members": members,
+    }
+
 # ROLES
 @router.post("/roles")
 async def create_role(
@@ -221,356 +293,3 @@ async def create_user(
             detail=f"Failed to create user: {str(e)}"
 
         )
-
-# Test Endpoint
-
-from fastapi import Depends, APIRouter
-from app.services.gmail_service import GmailService
-from app.auth.dependencies import get_current_user
-from app.models.user import User
-
-from fastapi import Depends
-from app.services.gmail_service import GmailService
-from app.auth.dependencies import get_current_user
-from app.core.database import user_collection
-from app.core.database import user_collection, gmail_labels_collection
-
-
-
-from bson import ObjectId
-
-@router.get("/gmail/test")
-async def test_gmail(admin=Depends(require_company_admin)):
-
-    user = await user_collection.find_one(
-        {"_id": ObjectId(admin["user_id"])}
-    )
-
-    if not user:
-        return {"error": "User not found in database"}
-
-    gmail_service = GmailService(user)
-    service = await gmail_service.create_service()
-
-    profile = service.users().getProfile(userId="me").execute()
-
-    return {
-        "email": profile["emailAddress"],
-        "total_messages": profile["messagesTotal"],
-        "total_threads": profile["threadsTotal"],
-    }
-
-
-@router.get("/gmail/messages")
-async def fetch_latest_message_ids(
-    admin=Depends(require_company_admin)
-):
-    from app.services.gmail_service import GmailService
-    from app.core.database import user_collection
-    from bson import ObjectId
-
-    # 1️⃣ Get user from DB
-    user = await user_collection.find_one(
-        {"_id": ObjectId(admin["user_id"])}
-    )
-
-    if not user:
-        return {"error": "User not found"}
-
-    # 2️⃣ Create Gmail service
-    gmail_service = GmailService(user)
-    service = await gmail_service.create_service()
-
-    # 3️⃣ Fetch latest 20 message IDs
-    results = service.users().messages().list(
-        userId="me",
-        maxResults=20
-    ).execute()
-
-    messages = results.get("messages", [])
-
-    # 4️⃣ Extract only IDs
-    message_ids = [msg["id"] for msg in messages]
-
-    return {
-        "total_fetched": len(message_ids),
-        "message_ids": message_ids
-    }
-
-
-
-import base64
-from email.utils import parsedate_to_datetime
-from fastapi import Depends
-from bson import ObjectId
-from app.services.ai_classifier import classify_email
-
-
-@router.get("/gmail/full-messages")
-async def fetch_full_email_details(
-    admin=Depends(require_company_admin)
-):
-    from app.services.gmail_service import GmailService
-    from app.core.database import user_collection, gmail_labels_collection
-    from app.services.ai_classifier import classify_email
-
-    # 1️⃣ Get user
-    user = await user_collection.find_one(
-        {"_id": ObjectId(admin["user_id"])}
-    )
-
-    if not user:
-        return {"error": "User not found"}
-
-    # 2️⃣ Create Gmail service
-    gmail_service = GmailService(user)
-    service = await gmail_service.create_service()
-
-    # 3️⃣ Get latest 10 message IDs
-    results = service.users().messages().list(
-        userId="me",
-        maxResults=10
-    ).execute()
-
-    messages = results.get("messages", [])
-    email_data = []
-
-    # 4️⃣ Fetch full details for each message
-    for msg in messages:
-        msg_id = msg["id"]
-
-        full_msg = service.users().messages().get(
-            userId="me",
-            id=msg_id,
-            format="full"
-        ).execute()
-
-        headers = full_msg["payload"]["headers"]
-
-        subject = next(
-            (h["value"] for h in headers if h["name"] == "Subject"),
-            ""
-        )
-
-        sender = next(
-            (h["value"] for h in headers if h["name"] == "From"),
-            ""
-        )
-
-        date_header = next(
-            (h["value"] for h in headers if h["name"] == "Date"),
-            None
-        )
-
-        timestamp = None
-        if date_header:
-            try:
-                timestamp = parsedate_to_datetime(date_header)
-            except:
-                timestamp = None
-
-        # 🧠 Extract body
-        body = ""
-
-        if "parts" in full_msg["payload"]:
-            for part in full_msg["payload"]["parts"]:
-                if part["mimeType"] == "text/plain":
-                    data = part["body"].get("data")
-                    if data:
-                        body = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
-                        break
-        else:
-            data = full_msg["payload"]["body"].get("data")
-            if data:
-                body = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
-
-        # ✅ CLASSIFY EMAIL
-        
-   
-        from app.services.ai_classifier import classify_email
-        category = classify_email(subject, body)
-
-
-        # ✅ GET LABEL ID FROM DB
-        label_doc = await gmail_labels_collection.find_one({
-            "user_id": ObjectId(admin["user_id"]),
-            "label_name": category
-        })
-
-        # ✅ APPLY LABEL
-        if label_doc:
-            label_id = label_doc["label_id"]
-
-            service.users().messages().modify(
-                userId="me",
-                id=msg_id,
-                body={"addLabelIds": [label_id]}
-            ).execute()
-
-        email_data.append({
-            "message_id": msg_id,
-            "subject": subject,
-            "sender": sender,
-            "category": category,
-            "timestamp": timestamp
-        })
-
-    return {
-        "total_emails": len(email_data),
-        "emails": email_data
-    }
-
-
-
-@router.post("/gmail/setup-labels")
-async def setup_custom_labels(
-    admin=Depends(require_company_admin)
-):
-    from app.services.gmail_service import GmailService
-    from app.core.database import user_collection
-    from bson import ObjectId
-
-    user = await user_collection.find_one(
-        {"_id": ObjectId(admin["user_id"])}
-    )
-
-    if not user:
-        return {"error": "User not found"}
-
-    gmail_service = GmailService(user)
-    service = await gmail_service.create_service()
-
-    # Attach service instance
-    gmail_service.service = service
-
-    labels_to_create = ["Work", "Urgent", "Finance", "Notifications"]
-
-    created_labels = {}
-
-    for label_name in labels_to_create:
-        label_id = await gmail_service.create_label_if_not_exists(label_name)
-        created_labels[label_name] = label_id
-        
-
-    return {
-        "message": "Labels created successfully",
-        "labels": created_labels
-    }
-
-
-from datetime import datetime
-import base64
-from email.utils import parsedate_to_datetime
-
-@router.post("/gmail/auto-organize")
-async def auto_organize_emails(
-    admin=Depends(require_company_admin)
-):
-    from app.services.gmail_service import GmailService
-    from app.core.database import user_collection, email_collection, gmail_labels_collection
-    from app.services.ai_classifier import classify_email
-    from bson import ObjectId
-
-    # 1️⃣ Get user
-    user = await user_collection.find_one(
-        {"_id": ObjectId(admin["user_id"])}
-    )
-
-    if not user:
-        return {"error": "User not found"}
-
-    # 2️⃣ Create Gmail service
-    gmail_service = GmailService(user)
-    service = await gmail_service.create_service()
-
-    # 3️⃣ Fetch latest emails
-    results = service.users().messages().list(
-        userId="me",
-        maxResults=20
-    ).execute()
-
-    messages = results.get("messages", [])
-
-    processed = 0
-    skipped = 0
-
-    for msg in messages:
-        msg_id = msg["id"]
-
-        # 🔍 4️⃣ CHECK IF ALREADY CLASSIFIED
-        existing = await email_collection.find_one({
-            "user_id": ObjectId(admin["user_id"]),
-            "message_id": msg_id
-        })
-
-        if existing:
-            skipped += 1
-            continue  # Skip old emails
-
-        # 5️⃣ Fetch full message
-        full_msg = service.users().messages().get(
-            userId="me",
-            id=msg_id,
-            format="full"
-        ).execute()
-
-        headers = full_msg["payload"]["headers"]
-
-        subject = next(
-            (h["value"] for h in headers if h["name"] == "Subject"),
-            ""
-        )
-
-        sender = next(
-            (h["value"] for h in headers if h["name"] == "From"),
-            ""
-        )
-
-        body = ""
-
-        if "parts" in full_msg["payload"]:
-            for part in full_msg["payload"]["parts"]:
-                if part["mimeType"] == "text/plain":
-                    data = part["body"].get("data")
-                    if data:
-                        body = base64.urlsafe_b64decode(data).decode(
-                            "utf-8", errors="ignore"
-                        )
-                        break
-        else:
-            data = full_msg["payload"]["body"].get("data")
-            if data:
-                body = base64.urlsafe_b64decode(data).decode(
-                    "utf-8", errors="ignore"
-                )
-
-        # 🧠 6️⃣ CLASSIFY WITH GEMINI
-        category = classify_email(subject, body)
-
-        # 7️⃣ Get label id from DB
-        label_doc = await gmail_labels_collection.find_one({
-            "user_id": ObjectId(admin["user_id"]),
-            "label_name": category
-        })
-
-        if label_doc:
-            label_id = label_doc["label_id"]
-            await gmail_service.apply_label_to_email(msg_id, label_id)
-
-        # 8️⃣ SAVE TO DB
-        await email_collection.insert_one({
-            "user_id": ObjectId(admin["user_id"]),
-            "message_id": msg_id,
-            "subject": subject,
-            "sender": sender,
-            "category": category,
-            "classified_at": datetime.utcnow()
-        })
-
-        processed += 1
-
-    return {
-        "processed_new_emails": processed,
-        "skipped_existing_emails": skipped
-    }
-

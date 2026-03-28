@@ -18,8 +18,48 @@ from datetime import datetime, timezone
 read_receipt_collection = database.message_read_receipts
 user_delete_collection = database.message_user_deletes
 
-router = APIRouter(prefix="/messages", tags=["Chat Messages"])
 router = APIRouter(prefix="/groups", tags=["Chat Groups"])
+
+
+@router.get("/")
+async def list_my_groups(current_user=Depends(get_current_user)):
+    """List groups the user created or is a member of."""
+    user_id = current_user["user_id"]
+    company_id = current_user["company_id"]
+
+    member_group_ids = []
+    async for m in chat_group_member_collection.find(
+        {"user_id": user_id, "is_active": True}
+    ):
+        member_group_ids.append(m["group_id"])
+
+    if not member_group_ids:
+        return []
+
+    oids = []
+    for gid in member_group_ids:
+        try:
+            oids.append(ObjectId(gid))
+        except Exception:
+            pass
+
+    if not oids:
+        return []
+
+    groups_cursor = chat_group_collection.find({
+        "_id": {"$in": oids},
+        "company_id": company_id,
+        "is_archived": False,
+    }).sort("created_at", -1)
+
+    groups = []
+    async for g in groups_cursor:
+        g["_id"] = str(g["_id"])
+        groups.append(g)
+
+    return groups
+
+
 @router.post("/")
 async def create_new_group(
     request: CreateGroupRequest,
@@ -36,7 +76,7 @@ async def create_new_group(
                 detail="Only admins can create organizational groups"
             )
 
-    # 🤝 Rule 2: Project groups → employees allowed
+    # 🤝 Rule 2: Project groups → all employees can create
     if request.group_category == "project":
         if user_type != "employee" and user_scope not in ["super_admin", "company_admin"]:
             raise HTTPException(
@@ -107,6 +147,62 @@ async def add_member(
     await add_member_to_group(group_id, request)
 
     return {"message": "Member added successfully"}
+
+
+@router.get("/{group_id}/members")
+async def list_group_members_detail(
+    group_id: str,
+    current_user=Depends(get_current_user),
+):
+    """List active members of a group with display info (must be a member)."""
+    user_id = current_user["user_id"]
+    company_id = current_user["company_id"]
+
+    group = await chat_group_collection.find_one({
+        "_id": ObjectId(group_id),
+        "is_archived": False,
+    })
+    if not group or group.get("company_id") != company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+
+    my_mem = await chat_group_member_collection.find_one({
+        "group_id": group_id,
+        "user_id": user_id,
+        "is_active": True,
+    })
+    if not my_mem:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group")
+
+    members_out = []
+    cursor = chat_group_member_collection.find({"group_id": group_id, "is_active": True})
+    async for m in cursor:
+        uid = m.get("user_id")
+        if uid is None:
+            continue
+        if isinstance(uid, ObjectId):
+            uid = str(uid)
+        else:
+            uid = str(uid).strip()
+        if not uid:
+            continue
+        try:
+            u = await user_collection.find_one(
+                {"_id": ObjectId(uid)},
+                {"name": 1, "email": 1, "username": 1},
+            )
+        except Exception:
+            u = None
+        members_out.append({
+            "user_id": uid,
+            "username": (u or {}).get("username"),
+            "name": (u or {}).get("name", ""),
+            "email": (u or {}).get("email", ""),
+            "role": m.get("role", "member"),
+        })
+
+    return members_out
+
+
 @router.post("/{group_id}")
 async def send_message(
     group_id: str,
@@ -140,16 +236,44 @@ async def get_group_messages(
     async for d in deleted_cursor:
         deleted_ids.append(ObjectId(d["message_id"]))
 
-    messages_cursor = chat_message_collection.find({
+    query = {
         "group_id": group_id,
         "is_deleted": False,
         "_id": {"$nin": deleted_ids}
-    }).sort("created_at", -1)
+    }
+
+    messages_cursor = chat_message_collection.find(query).sort("created_at", -1)
 
     messages = []
     async for msg in messages_cursor:
         msg["_id"] = str(msg["_id"])
         messages.append(msg)
+
+    # Attach sender display names so the frontend can show names instead of raw IDs
+    sender_ids = {m.get("sender_id") for m in messages if m.get("sender_id")}
+    sender_map = {}
+    if sender_ids:
+        sender_oids = []
+        for sid in sender_ids:
+            try:
+                sender_oids.append(ObjectId(sid))
+            except Exception:
+                continue
+
+        if sender_oids:
+            async for user in user_collection.find(
+                {"_id": {"$in": sender_oids}},
+                {"_id": 1, "name": 1, "email": 1}
+            ):
+                uid = str(user["_id"])
+                name = user.get("name")
+                email = user.get("email")
+                sender_map[uid] = name or email or uid
+
+    for msg in messages:
+        sid = msg.get("sender_id")
+        if sid and sid in sender_map:
+            msg["sender_name"] = sender_map[sid]
 
     return messages
 @router.post("/{message_id}/read")

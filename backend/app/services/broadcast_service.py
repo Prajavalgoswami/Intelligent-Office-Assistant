@@ -19,12 +19,14 @@ async def create_broadcast(current_user: dict, data):
     user_id = current_user.get("user_id")
     company_id = current_user.get("company_id")
 
-    # 🔒 Rule 1: Company-wide broadcast
+    # 🔒 Rule 1: Company-wide broadcast (admins or employees with Manager role)
     if data.target_type == "all":
-        if user_scope not in ["super_admin", "company_admin"]:
+        roles = current_user.get("roles", [])
+        is_manager = any("manager" in str(r).lower() for r in roles)
+        if user_scope not in ["super_admin", "company_admin"] and not is_manager:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only admins can broadcast to entire company"
+                detail="Only admins or Managers can broadcast to entire company"
             )
 
     # 🔒 Rule 2: Group broadcast

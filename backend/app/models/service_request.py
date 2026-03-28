@@ -13,7 +13,7 @@ class ServiceRequest(BaseModel):
 
     category: str  # "hardware" | "software"
 
-    status: str = "open"  # open | in_progress | resolved
+    status: str = "open"  # open | in_progress | completed | resolved
     assigned_to: Optional[str] = None
 
     created_at: datetime = Field(default_factory=datetime.utcnow)

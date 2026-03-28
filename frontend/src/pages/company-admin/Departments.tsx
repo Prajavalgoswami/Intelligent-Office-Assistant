@@ -3,7 +3,9 @@ import {
     getDepartments,
     createDepartment,
     type Department,
-    type CreateDepartmentRequest
+    type CreateDepartmentRequest,
+    getDepartmentMembers,
+    type DepartmentMember
 } from '../../api/companyAdmin.api';
 
 export const Departments: React.FC = () => {
@@ -20,6 +22,11 @@ export const Departments: React.FC = () => {
         department_name: '',
         description: ''
     });
+    const [selectedDept, setSelectedDept] = useState<Department | null>(null);
+    const [membersOpen, setMembersOpen] = useState(false);
+    const [membersLoading, setMembersLoading] = useState(false);
+    const [membersError, setMembersError] = useState('');
+    const [members, setMembers] = useState<DepartmentMember[]>([]);
 
     const fetchDepartments = async () => {
         try {
@@ -72,6 +79,23 @@ export const Departments: React.FC = () => {
         }
     };
 
+    const openDepartmentMembers = async (dept: Department) => {
+        setSelectedDept(dept);
+        setMembersOpen(true);
+        setMembersError('');
+        setMembers([]);
+        setMembersLoading(true);
+        try {
+            const res = await getDepartmentMembers(dept.id);
+            setMembers(res.data.members ?? []);
+        } catch (err) {
+            console.error("Failed to load department members", err);
+            setMembersError("Unable to load department members.");
+        } finally {
+            setMembersLoading(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header with Create Button */}
@@ -116,12 +140,21 @@ export const Departments: React.FC = () => {
                             {departments && departments.length > 0 ? (
                                 departments.map((dept) => (
                                     <div
-                                        key={dept._id}
+                                        key={dept.id}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => void openDepartmentMembers(dept)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                e.preventDefault();
+                                                void openDepartmentMembers(dept);
+                                            }
+                                        }}
                                         className={`group relative overflow-hidden rounded-xl p-6 transition-all duration-300 ${
                                             isDarkMode
                                                 ? 'bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-white/10 hover:border-white/20 hover:shadow-lg hover:shadow-blue-500/10'
                                                 : 'bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md'
-                                        }`}
+                                        } cursor-pointer`}
                                     >
                                         {/* Gradient accent */}
                                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -145,9 +178,16 @@ export const Departments: React.FC = () => {
                                             {/* Stats */}
                                             <div className={`flex items-center justify-between pt-4 ${isDarkMode ? 'border-t border-white/5' : 'border-t border-slate-200'}`}>
                                                 <div className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                                                    <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>0</span> members
+                                                    <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{dept.member_count}</span> members
                                                 </div>
-                                                <button className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        void openDepartmentMembers(dept);
+                                                    }}
+                                                    className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+                                                >
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
@@ -171,6 +211,71 @@ export const Departments: React.FC = () => {
                     )}
                 </>
             )}
+
+        {/* Members Modal */}
+        {membersOpen && selectedDept && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMembersOpen(false)} />
+
+                <div className={`relative rounded-xl shadow-2xl p-6 w-full max-w-2xl ${isDarkMode ? 'bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10' : 'bg-white border border-slate-200'}`}>
+                    <button
+                        onClick={() => setMembersOpen(false)}
+                        className={`absolute top-4 right-4 p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`}
+                        type="button"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+
+                    <div className="mb-4">
+                        <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                            {selectedDept.department_name}
+                        </h3>
+                        {selectedDept.description && (
+                            <p className={`text-sm mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                                {selectedDept.description}
+                            </p>
+                        )}
+                    </div>
+
+                    {membersLoading ? (
+                        <div className="flex items-center justify-center py-10">
+                            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500" />
+                        </div>
+                    ) : membersError ? (
+                        <p className="text-sm text-red-500">{membersError}</p>
+                    ) : members.length === 0 ? (
+                        <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>No members in this department yet.</p>
+                    ) : (
+                        <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-200/20">
+                            {members.map((m) => (
+                                <div key={m.user_id} className="py-3 flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                            {m.name || m.email || m.user_id}
+                                        </p>
+                                        <p className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                                            {m.email}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 justify-end">
+                                        {(m.roles ?? []).slice(0, 4).map((r) => (
+                                            <span
+                                                key={`${m.user_id}-${r}`}
+                                                className={`text-[11px] px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-700'}`}
+                                            >
+                                                {r}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
 
         {/* Create Department Modal */}
         {isModalOpen && (

@@ -12,6 +12,7 @@ class RoleCreate(BaseModel):
     priority: str = Field("LOW", pattern="^(HIGH|MEDIUM|LOW)$")
 
 class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=32)
     name: str
     email: str
     department_id: str

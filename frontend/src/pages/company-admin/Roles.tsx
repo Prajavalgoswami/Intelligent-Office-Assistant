@@ -40,15 +40,14 @@ export const Roles: React.FC = () => {
 
     // Listen for theme changes
     useEffect(() => {
-        const handleThemeChange = () => {
-            const saved = localStorage.getItem('isDarkMode');
-            setIsDarkMode(saved !== null ? JSON.parse(saved) : true);
-        };
+    const handleThemeChange = () => {
+        const saved = localStorage.getItem('isDarkMode');
+        setIsDarkMode(saved ? JSON.parse(saved) : true);
+    };
 
-        window.addEventListener('themeChange', handleThemeChange);
-        return () => {
-            window.removeEventListener('themeChange', handleThemeChange);
-        };
+    window.addEventListener('themeChange', handleThemeChange);
+
+    return () => window.removeEventListener('themeChange', handleThemeChange);
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -126,7 +125,11 @@ export const Roles: React.FC = () => {
                                 {roles.map((role) => (
                                     <div
                                         key={role._id}
-                                        className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-white/10 p-6 hover:border-white/20 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10"
+                                        className={`group relative overflow-hidden rounded-xl p-6 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 ${
+    isDarkMode
+        ? 'bg-gradient-to-br from-slate-800/50 to-slate-800/30 border border-white/10 hover:border-white/20'
+        : 'bg-white border border-slate-200 hover:border-slate-300 shadow-sm'
+}`}
                                     >
                                         {/* Gradient accent */}
                                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -167,7 +170,11 @@ export const Roles: React.FC = () => {
                                                     </div>
                                                     <div className="flex flex-wrap gap-1">
                                                         {role.permissions.slice(0, 2).map((perm, idx) => (
-                                                            <span key={idx} className="text-xs px-2 py-1 bg-white/5 text-slate-300 rounded border border-white/5">
+                                                            <span key={idx} className={`text-xs px-2 py-1 rounded border ${
+    isDarkMode
+        ? 'bg-white/5 text-slate-300 border-white/5'
+        : 'bg-slate-100 text-slate-700 border-slate-200'
+}`}>
                                                                 {perm}
                                                             </span>
                                                         ))}

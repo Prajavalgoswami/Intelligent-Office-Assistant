@@ -17,12 +17,14 @@ export interface AdminMeResponse {
 }
 
 export interface Department {
-  _id: string;
+  id: string;
+  _id?: string;
   company_id: string;
   department_name: string;
   description?: string;
   is_default?: boolean;
   created_at?: string;
+  member_count: number;
 }
 
 export interface Role {
@@ -39,6 +41,22 @@ export interface CreateDepartmentRequest {
   description?: string;
 }
 
+export interface DepartmentMember {
+  user_id: string;
+  name: string;
+  email: string;
+  roles: string[];
+}
+
+export interface DepartmentMembersResponse {
+  department: {
+    id: string;
+    department_name: string;
+    description?: string;
+  };
+  members: DepartmentMember[];
+}
+
 export interface CreateRoleRequest {
   role_name: string;
   description?: string;
@@ -46,6 +64,7 @@ export interface CreateRoleRequest {
 }
 
 export interface CreateUserRequest {
+  username: string;
   name: string;
   email: string;
   department_id: string;
@@ -55,6 +74,7 @@ export interface CreateUserRequest {
 export interface CreateUserResponse {
   message: string;
   user_id: string;
+  username?: string;
   temp_password?: string;
 }
 
@@ -79,6 +99,9 @@ export const getDepartments = () =>
 
 export const createDepartment = (payload: CreateDepartmentRequest) =>
   axios.post<{ message: string; department_id: string }>("/company-admin/departments", payload);
+
+export const getDepartmentMembers = (departmentId: string) =>
+  axios.get<DepartmentMembersResponse>(`/company-admin/departments/${departmentId}/members`);
 
 export const getRoles = () =>
   axios.get<Role[]>("/company-admin/roles");

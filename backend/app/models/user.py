@@ -5,6 +5,7 @@ from pydantic import EmailStr, Field
 
 class User(MongoBaseModel):
     company_id: str
+    username: Optional[str] = None  # unique, lowercase; set on create / backfill
     name: str
     email: EmailStr
     password: Optional[str] = None

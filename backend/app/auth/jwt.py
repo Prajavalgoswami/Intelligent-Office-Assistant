@@ -27,11 +27,13 @@ def create_employee_token(
     user_id: str,
     company_id: str,
     role_names: list[str],
+    department_id: str,
     priority : str
 ) -> str:
     payload = {
         "user_id": user_id,
         "company_id": company_id,
+        "department_id": department_id,
         "roles": role_names,
         "priority":priority,
         "type": "employee",

@@ -9,7 +9,7 @@ export default function RequireSuperAdmin({
   const token = localStorage.getItem("access_token");
 
   if (!token) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/super-admin/login" replace />;
   }
 
   // Token validity & role are enforced by backend

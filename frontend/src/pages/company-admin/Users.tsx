@@ -20,6 +20,7 @@ export const Users: React.FC = () => {
     });
 
     const [formData, setFormData] = useState<CreateUserRequest>({
+        username: '',
         name: '',
         email: '',
         department_id: '',
@@ -68,8 +69,8 @@ export const Users: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.name || !formData.email || !formData.department_id || formData.role_ids.length === 0) {
-            alert("Please fill in all required fields");
+        if (!formData.username?.trim() || !formData.name || !formData.email || !formData.department_id || formData.role_ids.length === 0) {
+            alert("Please fill in all required fields (including username)");
             return;
         }
 
@@ -78,6 +79,7 @@ export const Users: React.FC = () => {
             const res = await createUser(formData);
             setSuccessData(res.data);
             setFormData({
+                username: '',
                 name: '',
                 email: '',
                 department_id: '',
@@ -152,6 +154,29 @@ export const Users: React.FC = () => {
                         : 'bg-white border-slate-200'
                     }`}>
                         <form onSubmit={handleSubmit} className={`p-8 space-y-6 ${isDarkMode ? '' : ''}`}>
+                            <div className="space-y-2">
+                                <label className={`text-sm font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    Username <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={formData.username}
+                                    onChange={e => setFormData(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                                    placeholder="e.g. jane_doe"
+                                    minLength={3}
+                                    maxLength={32}
+                                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                                      isDarkMode
+                                        ? 'bg-slate-700/50 border border-white/10 text-white placeholder-slate-500'
+                                        : 'bg-slate-100 border border-slate-300 text-slate-900 placeholder-slate-400 hover:bg-slate-50'
+                                    }`}
+                                />
+                                <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                                    3–32 characters: lowercase letters, digits, and underscores only. Used to sign in.
+                                </p>
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Name */}
                                 <div className="space-y-2">
@@ -210,7 +235,7 @@ export const Users: React.FC = () => {
                                     >
                                         <option value="" className={isDarkMode ? 'bg-slate-900' : 'bg-white'}>Select a department...</option>
                                         {departments.map(dept => (
-                                            <option key={dept._id} value={dept._id} className={isDarkMode ? 'bg-slate-900' : 'bg-white'}>
+                                            <option key={dept.id || dept._id} value={dept.id || dept._id} className={isDarkMode ? 'bg-slate-900' : 'bg-white'}>
                                                 {dept.department_name}
                                             </option>
                                         ))}

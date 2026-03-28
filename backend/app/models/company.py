@@ -1,5 +1,6 @@
 from .base import MongoBaseModel
 from typing import List, Literal
+from datetime import datetime, timezone
 from pydantic import Field
 
 class Company(MongoBaseModel):
@@ -8,3 +9,4 @@ class Company(MongoBaseModel):
     enabled_features: List[str] = [] 
     status: Literal["PENDING_ONBOARDING", "ACTIVE", "SUSPENDED"] = "PENDING_ONBOARDING"
     onboarding_completed: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -9,6 +9,8 @@ from app.models.user import User
 from app.models.company_config import CompanyConfig
 from app.models.user_role import UserRole
 from app.core.database import company_config_collection,super_admin_collection,company_collection, department_collection, role_collection, user_collection, user_role_collection
+from app.utils.username import suggest_username_from_email
+from app.services.user_identity import allocate_unique_username
 from app.schemas.super_admin import SuperAdminLoginRequest
 from app.auth.jwt import create_super_admin_token
 
@@ -78,8 +80,13 @@ async def create_company_service(
     temp_pw = generate_temp_password()
     hashed_pw = hash_password(temp_pw)
 
+    admin_username = await allocate_unique_username(
+        suggest_username_from_email(company_admin_email)
+    )
+
     admin_user = User(
         company_id=company_id,
+        username=admin_username,
         name="Company Admin",
         email=company_admin_email,
         password=hashed_pw,
@@ -125,50 +132,75 @@ async def get_dashboard_stats():
     """
     Get dashboard statistics for super admin
     """
-    from datetime import datetime, timedelta
-    
+    from datetime import datetime, timedelta, timezone
+    from bson import ObjectId
+
+    def _utc_day_start(d) -> datetime:
+        return datetime.combine(d, datetime.min.time(), tzinfo=timezone.utc)
+
     # Total companies
     total_companies = await company_collection.count_documents({})
-    
-    # Active companies (created in last 30 days)
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+    # Active companies (created in last 30 days) — support legacy docs without created_at
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    oid_cutoff = ObjectId.from_datetime(thirty_days_ago)
     active_companies = await company_collection.count_documents({
-        "created_at": {"$gte": thirty_days_ago}
+        "$or": [
+            {"created_at": {"$gte": thirty_days_ago}},
+            {"created_at": {"$exists": False}, "_id": {"$gte": oid_cutoff}},
+        ]
     })
-    
+
     # Total users across all companies
     total_users = await user_collection.count_documents({})
-    
+
     # Active users (status = active)
     active_users = await user_collection.count_documents({"status": "active"})
-    
-    # Recent companies (last 5)
-    recent_companies_cursor = company_collection.find().sort("created_at", -1).limit(5)
+
+    # Recent companies (last 5) — sort by created_at when present, else by _id
+    recent_companies_cursor = company_collection.find().sort(
+        [("created_at", -1), ("_id", -1)]
+    ).limit(5)
     recent_companies = []
     async for company in recent_companies_cursor:
+        ca = company.get("created_at")
+        if ca is None:
+            ca = company["_id"].generation_time
+        if hasattr(ca, "isoformat"):
+            created_iso = ca.isoformat()
+        else:
+            created_iso = datetime.now(timezone.utc).isoformat()
         recent_companies.append({
             "id": str(company["_id"]),
             "name": company.get("company_name", "Unknown"),
             "domain": company.get("company_domain", ""),
-            "created_at": company.get("created_at", datetime.utcnow()).isoformat()
+            "created_at": created_iso,
         })
-    
-    # Company growth data (last 7 days)
+
+    # Company growth data (last 7 calendar days, UTC) — use aware datetimes so MongoDB matches stored created_at
     growth_data = []
-    for i in range(6, -1, -1):
-        day = datetime.utcnow() - timedelta(days=i)
-        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_utc = datetime.now(timezone.utc).date()
+    for offset in range(6, -1, -1):
+        day_date = today_utc - timedelta(days=offset)
+        day_start = _utc_day_start(day_date)
         day_end = day_start + timedelta(days=1)
-        
+        oid_min = ObjectId.from_datetime(day_start)
+        oid_max = ObjectId.from_datetime(day_end)
+
         count = await company_collection.count_documents({
-            "created_at": {"$gte": day_start, "$lt": day_end}
+            "$or": [
+                {"created_at": {"$gte": day_start, "$lt": day_end}},
+                {
+                    "created_at": {"$exists": False},
+                    "_id": {"$gte": oid_min, "$lt": oid_max},
+                },
+            ]
         })
-        
         growth_data.append({
             "date": day_start.strftime("%Y-%m-%d"),
-            "count": count
+            "count": count,
         })
-    
+
     return {
         "total_companies": total_companies,
         "active_companies": active_companies,

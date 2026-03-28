@@ -1,5 +1,5 @@
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
+from motor.motor_asyncio import AsyncIOMotorClient # pyright: ignore[reportMissingImports]
+from dotenv import load_dotenv # pyright: ignore[reportMissingImports]
 import os
 
 load_dotenv()
@@ -8,6 +8,7 @@ MONGODB_URL = os.getenv("MONGO_URL")
 client = AsyncIOMotorClient(MONGODB_URL)
 database = client.office_ai_db
 company_collection = database.companies
+service_request_collection = database.service_request
 department_collection = database.departments
 role_collection = database.roles
 permission_collection = database.permissions

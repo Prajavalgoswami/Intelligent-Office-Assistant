@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
 
@@ -5,6 +6,8 @@ from app.auth.google_auth import get_auth_flow
 from app.auth.dependencies import get_current_user
 from app.core.database import user_collection
 from bson import ObjectId
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 
 router = APIRouter(prefix="/auth/google", tags=["Google Auth"])
@@ -110,33 +113,33 @@ from app.core.database import user_collection
 
 @router.get("/callback")
 async def google_callback(code: str, state: str):
+    try:
+        flow = get_auth_flow()
+        flow.fetch_token(code=code)
 
-    flow = get_auth_flow()
-    flow.fetch_token(code=code)
+        credentials = flow.credentials
+        user_id = state
 
-    credentials = flow.credentials
+        await user_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "access_token": credentials.token,
+                    "refresh_token": credentials.refresh_token,
+                    "token_expiry": credentials.expiry,
+                }
+            },
+        )
 
-    # ✅ Extract user_id from state
-    user_id = state
-
-    result = await user_collection.update_one(
-        {"_id": ObjectId(user_id)},
-        {
-            "$set": {
-                "access_token": credentials.token,
-                "refresh_token": credentials.refresh_token,
-                "token_expiry": credentials.expiry
-            }
-        }
-    )
- 
-
-    print("Modified count:", result.modified_count)
-    
-    return {
-        "message": "Google account connected successfully",
-        "user_updated": result.modified_count
-    }
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/app/gmail?google_connected=1",
+            status_code=302,
+        )
+    except Exception:
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/app/gmail?google_error=1",
+            status_code=302,
+        )
 
    
 

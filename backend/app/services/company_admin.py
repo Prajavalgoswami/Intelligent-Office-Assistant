@@ -6,13 +6,15 @@ from app.core.database import (
     role_collection, user_role_collection,company_collection,company_settings_collection
 )
 from app.auth.password import generate_temp_password, hash_password, verify_password
+from app.utils.username import normalize_username
 from app.auth.jwt import create_company_admin_token
 from app.schemas.company_admin import RoleCreate, UserCreate
 from app.models.role import Role
 from app.models.user import User
 from app.models.user_role import UserRole
-from app.models.department import Department
+from app.models.department import Department as DepartmentModel
 from app.models.company_settings import CompanySettings
+from app.schemas.department import Department as DepartmentSchema
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 import os
@@ -53,21 +55,29 @@ async def get_company_admin_role_ids(company_id: str):
         "role_name": {"$regex": "^company.?admin$", "$options": "i"}
     })
     return [str(doc["_id"]) async for doc in cursor]
-
 async def create_department(company_id: str, name: str, description: Optional[str] = None):
+    
     existing = await department_collection.find_one({
         "company_id": company_id,
         "department_name": {"$regex": f"^{name}$", "$options": "i"}
     })
+
     if existing:
         raise HTTPException(status_code=400, detail="Department already exists")
 
-    department = Department(
+    dept_id = ObjectId()
+
+    department = DepartmentModel(
+        _id=dept_id,
         company_id=company_id,
         department_name=name,
         description=description or ""
     )
-    result = await department_collection.insert_one(department.model_dump(by_alias=True))
+
+    result = await department_collection.insert_one(
+        department.model_dump(by_alias=True)
+    )
+
     return str(result.inserted_id)
 
 async def create_role_service(company_id: str, role_data: RoleCreate):
@@ -90,6 +100,15 @@ async def create_user_service(company_id: str, user_data: UserCreate):
     })
     if not dept:
         raise HTTPException(404, "Department not found")
+
+    try:
+        uname = normalize_username(user_data.username)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    taken = await user_collection.find_one({"username": uname})
+    if taken:
+        raise HTTPException(400, "Username already taken")
 
     # Validate roles
     validated_roles = []
@@ -115,6 +134,7 @@ async def create_user_service(company_id: str, user_data: UserCreate):
     # Create user
     new_user = User(
         company_id=company_id,
+        username=uname,
         name=user_data.name,
         email=user_data.email,
         password=hashed_pw,
@@ -133,6 +153,7 @@ async def create_user_service(company_id: str, user_data: UserCreate):
     response = {
         "message": "User created successfully",
         "user_id": user_id,
+        "username": uname,
         "email": user_data.email
     }
 
@@ -142,10 +163,28 @@ async def create_user_service(company_id: str, user_data: UserCreate):
 
     return response
 
+from bson import ObjectId
+
 async def get_departments_service(company_id: str):
     depts = []
+
     async for doc in department_collection.find({"company_id": company_id}):
-        depts.append(Department(**doc))
+
+        # 🔥 Convert ObjectId to string
+        department_id_str = str(doc["_id"])
+
+        member_count = await user_collection.count_documents({
+            "department_id": department_id_str
+        })
+
+        doc["member_count"] = member_count
+        doc["id"] = department_id_str
+        del doc["_id"]
+
+        depts.append(DepartmentSchema(**doc))
+
+        print(f"Department: {doc['department_name']}, Members: {member_count}")
+
     return depts
 
 async def get_roles_service(company_id: str):
