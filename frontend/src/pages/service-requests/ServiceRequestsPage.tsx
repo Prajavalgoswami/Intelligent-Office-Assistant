@@ -15,12 +15,39 @@ import {
 } from "../../api/serviceRequest.api";
 import { useEmployeeAuth } from "../../auth/EmployeeAuthContext";
 
+type FilterTab = "all" | "open" | "in_progress" | "resolved";
+
+const filterTabs: { key: FilterTab; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "open", label: "Open" },
+  { key: "in_progress", label: "In Progress" },
+  { key: "resolved", label: "Resolved" },
+];
+
+function getCategoryIcon(category: string) {
+  if (category === "hardware") {
+    return (
+      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+    </svg>
+  );
+}
+
 export function ServiceRequestsPage() {
   const { hasRole, user } = useEmployeeAuth();
 
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
   const [createPayload, setCreatePayload] = useState<ServiceRequestCreateInput>({
@@ -91,7 +118,6 @@ export function ServiceRequestsPage() {
       await fetchRequests();
     } catch (err) {
       console.error("Failed to assign service request", err);
-      // Keep list as-is but clear assigning state; error is logged
     } finally {
       setAssigningId(null);
     }
@@ -121,6 +147,25 @@ export function ServiceRequestsPage() {
     }
   }
 
+  // Filter + search
+  const filteredRequests = requests.filter((r) => {
+    const status = String(r.status).toLowerCase();
+    if (activeFilter !== "all" && status !== activeFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  // Count per tab
+  const counts: Record<FilterTab, number> = {
+    all: requests.length,
+    open: requests.filter((r) => String(r.status).toLowerCase() === "open").length,
+    in_progress: requests.filter((r) => String(r.status).toLowerCase() === "in_progress").length,
+    resolved: requests.filter((r) => String(r.status).toLowerCase() === "resolved").length,
+  };
+
   const columns: TableColumn<ServiceRequest>[] = [
     {
       id: "title",
@@ -140,8 +185,9 @@ export function ServiceRequestsPage() {
       id: "category",
       header: "Category",
       render: (row) => (
-        <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-          {row.category}
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+          {getCategoryIcon(row.category)}
+          <span className="capitalize">{row.category}</span>
         </span>
       ),
     },
@@ -159,7 +205,7 @@ export function ServiceRequestsPage() {
             {row.assigned_to}
           </span>
         ) : (
-          <span className="text-xs text-slate-400 dark:text-slate-500">
+          <span className="text-xs text-slate-400 dark:text-slate-500 italic">
             Unassigned
           </span>
         ),
@@ -191,7 +237,7 @@ export function ServiceRequestsPage() {
           row.raised_by === currentUserId && normalizedStatus === "completed";
 
         if (!canShowAssignButton && !canShowCompleteButton && !canShowClientFeedback) {
-          return <span className="text-xs text-slate-400 dark:text-slate-500">-</span>;
+          return <span className="text-xs text-slate-400 dark:text-slate-500">—</span>;
         }
 
         const isThisAssigning = assigningId === row._id;
@@ -205,7 +251,7 @@ export function ServiceRequestsPage() {
                 type="button"
                 onClick={() => handleAssignToMe(row._id)}
                 disabled={isThisAssigning}
-                className="inline-flex items-center rounded-md border border-indigo-500 px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="inline-flex items-center rounded-lg border border-indigo-300 dark:border-indigo-600 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isThisAssigning ? "Assigning…" : "Assign to me"}
               </button>
@@ -216,7 +262,7 @@ export function ServiceRequestsPage() {
                 type="button"
                 onClick={() => handleComplete(row._id)}
                 disabled={isThisCompleting}
-                className="inline-flex items-center rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-2.5 py-1 text-xs font-medium text-white shadow-sm hover:shadow-emerald-500/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isThisCompleting ? "Completing…" : "Complete"}
               </button>
@@ -228,19 +274,23 @@ export function ServiceRequestsPage() {
                   type="button"
                   onClick={() => handleClientFeedback(row._id, true)}
                   disabled={isThisFeedback}
-                  className="inline-flex items-center rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   title="Satisfied"
                 >
-                  ✓
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleClientFeedback(row._id, false)}
                   disabled={isThisFeedback}
-                  className="inline-flex items-center rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center rounded-lg border border-rose-300 dark:border-rose-600 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   title="Not satisfied"
                 >
-                  ✕
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </>
             )}
@@ -250,66 +300,124 @@ export function ServiceRequestsPage() {
     },
   ];
 
-  const hasData = requests.length > 0;
+  const inputClasses =
+    "block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/80 px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-indigo-500 dark:focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200";
 
   return (
     <div className="space-y-4">
       <Card
         title="Service Requests"
-        description="Track issues and requests raised across your workspace."
+        description="Track issues and requests across your workspace."
+        icon={
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+          </svg>
+        }
+        accentColor="rose"
       >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <p className="text-xs text-slate-500">
-            View and manage service requests. Technical Support can pick up
-            unassigned items.
-          </p>
-          <button
-            type="button"
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700"
-          >
-            Create Request
-          </button>
+        {/* Toolbar */}
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-1 rounded-xl bg-slate-100 dark:bg-slate-700/40 p-1">
+            {filterTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveFilter(tab.key)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                  activeFilter === tab.key
+                    ? "bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                {tab.label}
+                <span
+                  className={`inline-flex items-center justify-center min-w-[1.25rem] rounded-full px-1 py-0.5 text-[10px] font-semibold ${
+                    activeFilter === tab.key
+                      ? "bg-indigo-100 dark:bg-indigo-800/40 text-indigo-700 dark:text-indigo-300"
+                      : "bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  {counts[tab.key]}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Search */}
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search requests…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-48 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/80 pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 py-1.5 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 hover:-translate-y-0.5 transition-all duration-200"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              New Request
+            </button>
+          </div>
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-10">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-6 w-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-              <p className="text-xs text-slate-500">
-                Loading service requests…
-              </p>
-            </div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="animate-pulse flex items-center gap-4 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-700" />
+                </div>
+                <div className="h-6 w-16 rounded-full bg-slate-200 dark:bg-slate-700" />
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-            <p className="text-sm font-medium text-red-600">{error}</p>
+            <p className="text-sm font-medium text-rose-600 dark:text-rose-400">{error}</p>
             <button
               type="button"
               onClick={() => void fetchRequests()}
-              className="inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+              className="inline-flex items-center rounded-xl bg-slate-900 dark:bg-slate-700 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors"
             >
               Retry
             </button>
           </div>
-        ) : hasData ? (
+        ) : filteredRequests.length > 0 ? (
           <Table<ServiceRequest>
             columns={columns}
-            data={requests}
+            data={filteredRequests}
             emptyMessage="No service requests found."
           />
         ) : (
           <EmptyState
-            title="No service requests yet"
-            description="When you raise a service request, it will appear here so you and the support team can track it."
+            title={searchQuery ? "No matching requests" : "No service requests yet"}
+            description={
+              searchQuery
+                ? "Try adjusting your search or filter criteria."
+                : "When you raise a service request, it will appear here."
+            }
             action={
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(true)}
-                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700"
-              >
-                Create your first request
-              </button>
+              !searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(true)}
+                  className="inline-flex items-center rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 py-2 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 transition-all"
+                >
+                  Create your first request
+                </button>
+              ) : undefined
             }
           />
         )}
@@ -335,7 +443,7 @@ export function ServiceRequestsPage() {
                   setCreateError(null);
                 }
               }}
-              className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
               disabled={createSubmitting}
             >
               Cancel
@@ -343,9 +451,10 @@ export function ServiceRequestsPage() {
             <button
               type="submit"
               form="create-service-request-form"
-              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 py-2 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               disabled={createSubmitting}
             >
+              {createSubmitting && <span className="h-3 w-3 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />}
               {createSubmitting ? "Creating…" : "Create request"}
             </button>
           </div>
@@ -354,10 +463,10 @@ export function ServiceRequestsPage() {
         <form
           id="create-service-request-form"
           onSubmit={handleCreateSubmit}
-          className="space-y-3"
+          className="space-y-4"
         >
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
               Title
             </label>
             <input
@@ -369,14 +478,14 @@ export function ServiceRequestsPage() {
                   title: event.target.value,
                 }))
               }
-              className="block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
+              className={inputClasses}
               placeholder="Short summary of the issue"
               required
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
               Category
             </label>
             <select
@@ -387,15 +496,15 @@ export function ServiceRequestsPage() {
                   category: event.target.value,
                 }))
               }
-              className="block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              className={inputClasses}
             >
-              <option value="hardware">Hardware</option>
-              <option value="software">Software</option>
+              <option value="hardware">🖥️ Hardware</option>
+              <option value="software">💻 Software</option>
             </select>
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
               Description
             </label>
             <textarea
@@ -407,18 +516,19 @@ export function ServiceRequestsPage() {
                 }))
               }
               rows={4}
-              className="block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
+              className={inputClasses}
               placeholder="Provide more detail to help the support team understand the issue."
               required
             />
           </div>
 
           {createError && (
-            <p className="text-xs text-red-600">{createError}</p>
+            <div className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-900/20 px-3 py-2">
+              <p className="text-xs text-rose-600 dark:text-rose-400">{createError}</p>
+            </div>
           )}
         </form>
       </Modal>
     </div>
   );
 }
-

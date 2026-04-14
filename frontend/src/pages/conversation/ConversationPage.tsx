@@ -52,28 +52,58 @@ function getAssistantBadge(type?: string) {
 
 function getAssistantBubbleClasses(type?: string): string {
   const base =
-    "inline-flex max-w-[80%] flex-col rounded-2xl px-3 py-2 text-sm shadow-sm";
+    "inline-flex max-w-[80%] flex-col rounded-2xl rounded-bl-sm px-4 py-3 text-sm shadow-sm transition-all duration-300";
 
   if (type === "error") {
-    return `${base} bg-rose-50 text-rose-800 border border-rose-200`;
+    return `${base} bg-rose-50 dark:bg-rose-900/20 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-800/40`;
   }
 
   if (type === "meeting_confirmation") {
-    return `${base} bg-emerald-50 text-emerald-900 border border-emerald-200`;
+    return `${base} bg-emerald-50 dark:bg-emerald-900/20 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/40`;
   }
 
   if (type === "clarification") {
-    return `${base} bg-amber-50 text-amber-900 border border-amber-200`;
+    return `${base} bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800/40`;
   }
 
-  return `${base} bg-white text-slate-900 border border-slate-200`;
+  return `${base} bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700/60`;
 }
+
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start animate-[fadeSlideIn_0.3s_ease-out]">
+      <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-bl-sm border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800 px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500"
+              style={{
+                animation: `typingDot 1.4s ease-in-out infinite`,
+                animationDelay: `${i * 0.2}s`,
+              }}
+            />
+          ))}
+        </div>
+        <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">thinking…</span>
+      </div>
+    </div>
+  );
+}
+
+const quickSuggestions = [
+  "📅 Schedule a meeting",
+  "📋 Show my tasks",
+  "📧 Check my emails",
+  "💬 Summarize my day",
+];
 
 export function ConversationPage() {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [input, setInput] = useState<string>("");
   const [sending, setSending] = useState<boolean>(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -89,6 +119,17 @@ export function ConversationPage() {
     }
   }, [messages.length]);
 
+  function handleScroll() {
+    if (!scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    setShowScrollBtn(!isNearBottom);
+  }
+
+  function scrollToBottom() {
+    scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+
   const appendMessage = useCallback(
     (partial: Omit<ConversationMessage, "id">) => {
       setMessages((prev) => [
@@ -102,8 +143,8 @@ export function ConversationPage() {
     [],
   );
 
-  async function handleSend(): Promise<void> {
-    const trimmed = input.trim();
+  async function handleSend(text?: string): Promise<void> {
+    const trimmed = (text ?? input).trim();
     if (!trimmed || sending) {
       return;
     }
@@ -162,67 +203,130 @@ export function ConversationPage() {
     <div className="space-y-4">
       <Card
         title="Conversation Assistant"
-        description="Ask questions, schedule meetings, and get help with your day-to-day work."
+        description="Ask questions, schedule meetings, and get help with your work."
         className="h-[calc(100vh-9rem)] flex flex-col"
+        icon={
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        }
+        accentColor="indigo"
       >
         <div className="flex-1 min-h-0 flex flex-col">
-          <div
-            ref={scrollContainerRef}
-            className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 space-y-3 dark:border-slate-700 dark:bg-slate-900/50"
-          >
-            {!hasMessages && (
-              <div className="flex h-full items-center justify-center">
-                <div className="text-center max-w-sm">
-                  <p className="text-xs font-medium text-slate-500">
-                    Start a conversation with your intelligent assistant.
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Ask for help with meetings, tasks, or any workspace
-                    questions. Your messages stay within this workspace.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {messages.map((message) => {
-              if (message.role === "user") {
-                return (
-                  <div key={message.id} className="flex justify-end">
-                    <div className="inline-flex max-w-[80%] rounded-2xl rounded-br-sm bg-indigo-600 px-3 py-2 text-sm text-white shadow-sm">
-                      <p className="whitespace-pre-wrap break-words">
-                        {message.content}
-                      </p>
+          {/* Chat area */}
+          <div className="relative flex-1 min-h-0">
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="absolute inset-0 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/30 px-4 py-4 space-y-3 custom-scrollbar"
+            >
+              {!hasMessages && (
+                <div className="flex h-full items-center justify-center">
+                  <div className="text-center max-w-sm animate-[fadeSlideIn_0.5s_ease-out]">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900/30 dark:to-blue-900/30">
+                      <svg className="h-8 w-8 text-indigo-500 dark:text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                      </svg>
                     </div>
-                  </div>
-                );
-              }
-
-              const badge = getAssistantBadge(message.type);
-              const bubbleClasses = getAssistantBubbleClasses(message.type);
-
-              return (
-                <div key={message.id} className="flex justify-start">
-                  <div className={bubbleClasses}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Assistant
-                      </span>
-                      {badge}
-                    </div>
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {message.content}
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Start a conversation
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+                      Ask for help with meetings, tasks, or any workspace questions.
                     </p>
                   </div>
                 </div>
-              );
-            })}
+              )}
 
-            <div ref={scrollAnchorRef} />
+              {messages.map((message, i) => {
+                if (message.role === "user") {
+                  return (
+                    <div
+                      key={message.id}
+                      className="flex justify-end animate-[slideInRight_0.3s_ease-out]"
+                      style={{ animationDelay: `${i === messages.length - 1 ? 0 : 0}ms` }}
+                    >
+                      <div className="inline-flex max-w-[80%] items-end gap-2">
+                        <div className="rounded-2xl rounded-br-sm bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-3 text-sm text-white shadow-md">
+                          <p className="whitespace-pre-wrap break-words">
+                            {message.content}
+                          </p>
+                        </div>
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+                          Y
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                const badge = getAssistantBadge(message.type);
+                const bubbleClasses = getAssistantBubbleClasses(message.type);
+
+                return (
+                  <div key={message.id} className="flex justify-start animate-[slideInLeft_0.3s_ease-out]">
+                    <div className="inline-flex max-w-[80%] items-end gap-2">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-700">
+                        <svg className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                        </svg>
+                      </div>
+                      <div className={bubbleClasses}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Assistant
+                          </span>
+                          {badge}
+                        </div>
+                        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                          {message.content}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {sending && <TypingIndicator />}
+
+              <div ref={scrollAnchorRef} />
+            </div>
+
+            {/* Scroll to bottom button */}
+            {showScrollBtn && (
+              <button
+                type="button"
+                onClick={scrollToBottom}
+                className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 transition-all animate-[scaleIn_0.2s_ease-out]"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </button>
+            )}
           </div>
 
+          {/* Quick suggestions */}
+          {!hasMessages && (
+            <div className="mt-3 flex flex-wrap gap-2 animate-[fadeSlideIn_0.5s_ease-out_0.3s_both]">
+              {quickSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => void handleSend(suggestion)}
+                  disabled={sending}
+                  className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-200 disabled:opacity-50"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Composer */}
           <form
             onSubmit={handleSubmit}
-            className="mt-3 flex items-end gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800"
+            className="mt-3 flex items-end gap-2 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 px-4 py-3 shadow-sm"
           >
             <div className="flex-1">
               <label className="sr-only" htmlFor="conversation-input">
@@ -234,7 +338,7 @@ export function ConversationPage() {
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleInputKeyDown}
                 rows={2}
-                className="block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0 dark:text-white dark:placeholder:text-slate-500"
+                className="block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-0"
                 placeholder="Ask a question, or type what you need help with…"
                 disabled={sending}
               />
@@ -243,7 +347,7 @@ export function ConversationPage() {
               <button
                 type="submit"
                 disabled={sending || !input.trim()}
-                className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               >
                 {sending ? (
                   <span className="flex items-center gap-1.5">
@@ -251,21 +355,25 @@ export function ConversationPage() {
                     Sending…
                   </span>
                 ) : (
-                  "Send"
+                  <span className="flex items-center gap-1">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                    </svg>
+                    Send
+                  </span>
                 )}
               </button>
-              <p className="text-[10px] text-slate-400">
-                Press Enter to send, Shift+Enter for a new line.
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                Enter to send · Shift+Enter for new line
               </p>
             </div>
           </form>
 
           {lastError && (
-            <p className="mt-2 text-[11px] text-rose-600">{lastError}</p>
+            <p className="mt-2 text-[11px] text-rose-500 dark:text-rose-400">{lastError}</p>
           )}
         </div>
       </Card>
     </div>
   );
 }
-

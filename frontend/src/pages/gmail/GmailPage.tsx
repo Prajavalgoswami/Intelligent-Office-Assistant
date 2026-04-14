@@ -14,6 +14,15 @@ import {
 
 type GmailConnectionState = "checking" | "connected" | "disconnected";
 
+const categoryColors: Record<string, string> = {
+  important: "bg-rose-500",
+  promotions: "bg-amber-500",
+  social: "bg-blue-500",
+  updates: "bg-emerald-500",
+  forums: "bg-violet-500",
+  personal: "bg-pink-500",
+};
+
 export function GmailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [connectionState, setConnectionState] =
@@ -109,6 +118,16 @@ export function GmailPage() {
     return Array.from(unique).sort((a, b) => a.localeCompare(b));
   }, [messages]);
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: messages.length };
+    for (const msg of messages) {
+      if (msg.category) {
+        counts[msg.category] = (counts[msg.category] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [messages]);
+
   const filteredMessages = useMemo<GmailMessage[]>(() => {
     if (selectedCategory === "all") {
       return messages;
@@ -165,15 +184,6 @@ export function GmailPage() {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
-  function getFilterButtonClasses(isActive: boolean): string {
-    const base =
-      "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors";
-    if (isActive) {
-      return `${base} border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-600`;
-    }
-    return `${base} border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700`;
-  }
-
   const columns: TableColumn<GmailMessage>[] = [
     {
       id: "subject",
@@ -192,7 +202,16 @@ export function GmailPage() {
     {
       id: "category",
       header: "Category",
-      render: (row) => <Badge variant="muted">{row.category || "Uncategorized"}</Badge>,
+      render: (row) => {
+        const cat = row.category?.toLowerCase() ?? "";
+        const dotColor = categoryColors[cat] ?? "bg-slate-400";
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+            <Badge variant="muted">{row.category || "Uncategorized"}</Badge>
+          </span>
+        );
+      },
     },
     {
       id: "timestamp",
@@ -202,7 +221,7 @@ export function GmailPage() {
         const value = Number.isNaN(date.getTime())
           ? "-"
           : date.toLocaleString();
-        return <span className="text-xs text-slate-500">{value}</span>;
+        return <span className="text-xs text-slate-500 dark:text-slate-400">{value}</span>;
       },
     },
     {
@@ -212,9 +231,12 @@ export function GmailPage() {
         <button
           type="button"
           onClick={() => handleOpenInGmail(row.message_id)}
-          className="inline-flex items-center rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
         >
-          Open in Gmail
+          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          Gmail
         </button>
       ),
     },
@@ -227,89 +249,127 @@ export function GmailPage() {
     <div className="space-y-4">
       <Card
         title="Gmail Smart Mail"
-        description="Connect your work Gmail account and automatically organize messages into smart categories."
+        description="Connect your work Gmail and automatically organize messages."
+        icon={
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        }
+        accentColor="blue"
       >
         {isCheckingConnection ? (
           <div className="flex justify-center py-10">
             <div className="flex flex-col items-center gap-3">
               <div className="h-6 w-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Checking your Gmail connection…
               </p>
             </div>
           </div>
         ) : isConnected ? (
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs text-slate-500">
-                  Review how Smart Mail groups your recent messages. Run auto
-                  organize to re-apply the latest rules.
-                </p>
-                {autoOrganizeMessage && (
-                  <p className="mt-1 text-xs text-emerald-600">
-                    {autoOrganizeMessage}
-                  </p>
-                )}
-                {autoOrganizeError && (
-                  <p className="mt-1 text-xs text-rose-600">
-                    {autoOrganizeError}
-                  </p>
-                )}
+            {/* Connection status + Auto organize bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700/40 p-3">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                </span>
+                <div>
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Gmail Connected</p>
+                  {autoOrganizeMessage && (
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400">{autoOrganizeMessage}</p>
+                  )}
+                  {autoOrganizeError && (
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400">{autoOrganizeError}</p>
+                  )}
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => void handleRunAutoOrganize()}
                 disabled={autoOrganizing || messagesLoading}
-                className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 hover:-translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
-                {autoOrganizing ? "Running…" : "Run Auto Organize"}
+                {autoOrganizing ? (
+                  <>
+                    <span className="h-3 w-3 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />
+                    Running…
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Auto Organize
+                  </>
+                )}
               </button>
             </div>
 
+            {/* Category Filters */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-slate-600">
-                Categories:
-              </span>
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Filter:</span>
               <button
                 type="button"
                 onClick={() => setSelectedCategory("all")}
-                className={getFilterButtonClasses(selectedCategory === "all")}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                  selectedCategory === "all"
+                    ? "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm"
+                    : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                }`}
               >
                 All
+                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-slate-200 dark:bg-slate-600 px-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                  {categoryCounts.all || 0}
+                </span>
               </button>
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => setSelectedCategory(category)}
-                  className={getFilterButtonClasses(
-                    selectedCategory === category,
-                  )}
-                >
-                  {category}
-                </button>
-              ))}
+              {categories.map((category) => {
+                const cat = category.toLowerCase();
+                const dotColor = categoryColors[cat] ?? "bg-slate-400";
+                const isActive = selectedCategory === category;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCategory(category)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                      isActive
+                        ? "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm"
+                        : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+                    {category}
+                    <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-slate-200 dark:bg-slate-600 px-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                      {categoryCounts[category] || 0}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {messagesLoading ? (
-              <div className="flex justify-center py-10">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="h-6 w-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                  <p className="text-xs text-slate-500">
-                    Loading your Gmail messages…
-                  </p>
-                </div>
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="animate-pulse flex items-center gap-4 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                    <div className="h-6 w-20 rounded-full bg-slate-200 dark:bg-slate-700" />
+                  </div>
+                ))}
               </div>
             ) : messagesError ? (
               <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-                <p className="text-sm font-medium text-rose-600">
+                <p className="text-sm font-medium text-rose-600 dark:text-rose-400">
                   {messagesError}
                 </p>
                 <button
                   type="button"
                   onClick={() => void fetchMessages()}
-                  className="inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                  className="inline-flex items-center rounded-xl bg-slate-900 dark:bg-slate-700 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors"
                 >
                   Retry
                 </button>
@@ -332,14 +392,26 @@ export function GmailPage() {
                   type="button"
                   onClick={() => void handleConnectGoogle()}
                   disabled={authLoading}
-                  className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-2.5 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 hover:-translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
-                  {authLoading ? "Connecting…" : "Connect Google"}
+                  {authLoading ? (
+                    <>
+                      <span className="h-3.5 w-3.5 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                      Connect Google
+                    </>
+                  )}
                 </button>
               }
             />
             {(statusError || authError) && (
-              <p className="text-xs text-center text-rose-600">
+              <p className="text-xs text-center text-rose-600 dark:text-rose-400">
                 {authError ?? statusError}
               </p>
             )}
@@ -348,7 +420,7 @@ export function GmailPage() {
                 <button
                   type="button"
                   onClick={() => void fetchStatusAndMessages()}
-                  className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   Check status again
                 </button>
@@ -360,4 +432,3 @@ export function GmailPage() {
     </div>
   );
 }
-

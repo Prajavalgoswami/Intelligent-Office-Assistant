@@ -39,6 +39,28 @@ interface ChatGroup {
 
 type ComposerState = "idle" | "sending";
 
+function getGroupInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((w) => w.charAt(0))
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+const groupGradients = [
+  "from-blue-500 to-cyan-500",
+  "from-violet-500 to-purple-500",
+  "from-emerald-500 to-teal-500",
+  "from-rose-500 to-pink-500",
+  "from-amber-500 to-orange-500",
+  "from-indigo-500 to-blue-500",
+];
+
+function getGroupGradient(index: number): string {
+  return groupGradients[index % groupGradients.length];
+}
+
 export function ChatPage() {
   const { user } = useEmployeeAuth();
 
@@ -75,6 +97,8 @@ export function ChatPage() {
   const [groupMembers, setGroupMembers] = useState<GroupMemberInfo[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState<string | null>(null);
+
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -142,6 +166,17 @@ export function ChatPage() {
 
   const hasGroups = groups.length > 0;
   const hasMessages = messages.length > 0;
+
+  function handleScroll() {
+    if (!scrollContainerRef.current) return;
+    const el = scrollContainerRef.current;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    setShowScrollBtn(!isNearBottom);
+  }
+
+  function scrollToBottom() {
+    scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
 
   async function fetchMessages(groupId: string): Promise<void> {
     setMessagesLoading(true);
@@ -270,103 +305,135 @@ export function ChatPage() {
     }
   }
 
+  const inputClasses =
+    "block w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800/80 px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-indigo-500 dark:focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200";
+
   return (
     <div className="space-y-4">
       <Card
         title="Team Chat"
-        description="Create focused groups for organizational and project collaboration."
-        className="h-[calc(100vh-9rem)] flex flex-col"
+        description="Create focused groups for collaboration."
+        className="h-[calc(100vh-9rem)]"
+        fillHeight
+        icon={
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+          </svg>
+        }
+        accentColor="blue"
       >
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Use chat groups to coordinate work with colleagues. Messages are
-            delivered instantly and can be managed per group.
+            Use chat groups to coordinate with colleagues.
           </p>
           <button
-              type="button"
-              onClick={() => {
-                if (!createGroupSubmitting) {
-                  setIsCreateGroupOpen(true);
-                  setCreateGroupError(null);
-                }
-              }}
-              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700"
-            >
-              Create Group
-            </button>
+            type="button"
+            onClick={() => {
+              if (!createGroupSubmitting) {
+                setIsCreateGroupOpen(true);
+                setCreateGroupError(null);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-1.5 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 hover:-translate-y-0.5 transition-all duration-200"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            New Group
+          </button>
         </div>
 
         <div className="flex flex-1 min-h-0 gap-4">
-          <aside className="w-56 shrink-0 border-r border-slate-200 pr-3 flex flex-col">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          {/* Sidebar */}
+          <aside className="w-60 shrink-0 border-r border-slate-200 dark:border-slate-700/60 pr-3 flex flex-col">
+            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Groups
             </h3>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 custom-scrollbar">
               {groupsLoading ? (
-                <div className="flex items-center justify-center py-6">
-                  <div className="h-5 w-5 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse flex items-center gap-2.5 rounded-xl p-2">
+                      <div className="h-8 w-8 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+                        <div className="h-2 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : hasGroups ? (
-                groups.map((group) => {
+                groups.map((group, i) => {
                   const isActive = group.id === selectedGroupId;
                   return (
                     <button
                       key={group.id}
                       type="button"
                       onClick={() => handleSelectGroup(group.id)}
-                      className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs ${
-                          isActive
-                            ? "bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700"
-                            : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-                        }`}
+                      className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-all duration-200 animate-[fadeSlideIn_0.3s_ease-out_both] ${
+                        isActive
+                          ? "bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700/50 shadow-sm"
+                          : "hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent"
+                      }`}
+                      style={{ animationDelay: `${i * 40}ms` }}
                     >
-                      <span className="truncate">{group.group_name}</span>
-                      <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-500 dark:bg-slate-700 dark:text-slate-300">
-                        {group.group_category === "organizational"
-                          ? "Org"
-                          : "Project"}
-                      </span>
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${getGroupGradient(i)} text-[10px] font-bold text-white shadow-sm`}>
+                        {getGroupInitials(group.group_name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-xs font-medium truncate ${isActive ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-slate-200"}`}>
+                          {group.group_name}
+                        </p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                          {group.group_category === "organizational" ? "Org" : "Project"}
+                        </p>
+                      </div>
                     </button>
                   );
                 })
               ) : (
                 <EmptyState
                   title="No groups yet"
-                  description="Create your first chat group to start collaborating with colleagues."
+                  description="Create your first chat group."
                   action={
                     <button
-                        type="button"
-                        onClick={() => {
-                          if (!createGroupSubmitting) {
-                            setIsCreateGroupOpen(true);
-                            setCreateGroupError(null);
-                          }
-                        }}
-                        className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700"
-                      >
-                        Create a group
-                      </button>
+                      type="button"
+                      onClick={() => {
+                        if (!createGroupSubmitting) {
+                          setIsCreateGroupOpen(true);
+                          setCreateGroupError(null);
+                        }
+                      }}
+                      className="inline-flex items-center rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-md transition-all"
+                    >
+                      Create a group
+                    </button>
                   }
                 />
               )}
             </div>
           </aside>
 
+          {/* Chat Area */}
           <section className="flex-1 min-w-0 flex flex-col">
             {selectedGroup ? (
               <>
-                <header className="mb-2 flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {selectedGroup.group_name}
-                    </h3>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      {selectedGroup.group_category === "organizational"
-                        ? "Organizational group"
-                        : "Project group"}
-                    </p>
+                {/* Header */}
+                <header className="mb-2 flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${getGroupGradient(groups.findIndex(g => g.id === selectedGroupId))} text-xs font-bold text-white shadow-sm`}>
+                      {getGroupInitials(selectedGroup.group_name)}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {selectedGroup.group_name}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {selectedGroup.group_category === "organizational" ? "Organizational" : "Project"} group
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {isGroupLead && (
                       <button
                         type="button"
@@ -381,9 +448,12 @@ export function ChatPage() {
                             setCompanyUsers([]);
                           }
                         }}
-                        className="inline-flex items-center rounded-md border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700/60 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                       >
-                        Add members
+                        <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        Add
                       </button>
                     )}
                     <button
@@ -397,193 +467,194 @@ export function ChatPage() {
                         try {
                           const res = await listGroupMembers(selectedGroupId);
                           const list = res.data;
-                          setGroupMembers(
-                            Array.isArray(list) ? list : [],
-                          );
+                          setGroupMembers(Array.isArray(list) ? list : []);
                         } catch (e) {
                           console.error("Failed to load group members", e);
-                          setMembersError(
-                            "Could not load members. You may not have access to this group.",
-                          );
+                          setMembersError("Could not load members.");
                           setGroupMembers([]);
                         } finally {
                           setMembersLoading(false);
                         }
                       }}
-                      className="inline-flex items-center rounded-md border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700/60 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                     >
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
                       Members
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        if (selectedGroupId) {
-                          void fetchMessages(selectedGroupId);
-                        }
+                        if (selectedGroupId) void fetchMessages(selectedGroupId);
                       }}
-                      className="inline-flex items-center rounded-md border border-slate-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700/60 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                     >
-                      Refresh
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
                     </button>
                   </div>
                 </header>
 
-                <div
-                  ref={scrollContainerRef}
-                  className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 space-y-3 dark:border-slate-700 dark:bg-slate-900/50"
-                >
-                  {messagesLoading ? (
-                    <div className="flex h-full items-center justify-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="h-6 w-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                        <p className="text-xs text-slate-500">
-                          Loading messages…
-                        </p>
+                {/* Messages */}
+                <div className="relative flex-1 min-h-0">
+                  <div
+                    ref={scrollContainerRef}
+                    onScroll={handleScroll}
+                    className="absolute inset-0 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/30 px-4 py-4 space-y-3 custom-scrollbar"
+                  >
+                    {messagesLoading ? (
+                      <div className="flex h-full items-center justify-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="h-6 w-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Loading messages…</p>
+                        </div>
                       </div>
-                    </div>
-                  ) : messagesError ? (
-                    <div className="flex h-full items-center justify-center">
-                      <div className="text-center space-y-2">
-                        <p className="text-sm font-medium text-rose-600">
-                          {messagesError}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (selectedGroupId) {
-                              void fetchMessages(selectedGroupId);
-                            }
-                          }}
-                          className="inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    </div>
-                  ) : hasMessages ? (
-                    <>
-                      {messages.map((message) => {
-                        const isMine = message.sender_id === currentUserId;
-                        const alignment = isMine
-                          ? "justify-end"
-                          : "justify-start";
-                        const bubbleClasses = isMine
-                          ? "bg-indigo-600 text-white rounded-2xl rounded-br-sm"
-                          : "rounded-2xl rounded-bl-sm border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white";
-
-                        return (
-                          <div
-                            key={message._id}
-                            className={`flex ${alignment} gap-2`}
+                    ) : messagesError ? (
+                      <div className="flex h-full items-center justify-center">
+                        <div className="text-center space-y-2">
+                          <p className="text-sm font-medium text-rose-600 dark:text-rose-400">{messagesError}</p>
+                          <button
+                            type="button"
+                            onClick={() => { if (selectedGroupId) void fetchMessages(selectedGroupId); }}
+                            className="inline-flex items-center rounded-xl bg-slate-900 dark:bg-slate-700 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 transition-colors"
                           >
-                            <div
-                              className={`inline-flex max-w-[80%] flex-col px-3 py-2 text-sm shadow-sm ${bubbleClasses}`}
-                            >
-                              <div className="flex items-center justify-between gap-2 mb-0.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
-                                  {isMine
-                                    ? "You"
-                                    : message.sender_name || message.sender_id}
-                                </span>
-                                <span className="text-[10px] opacity-70">
-                                  {new Date(
-                                    message.created_at,
-                                  ).toLocaleTimeString()}
-                                </span>
-                              </div>
-                              <p className="whitespace-pre-wrap break-words text-xs leading-relaxed">
-                                {message.content}
-                              </p>
-                            </div>
-                            <div className="relative">
-                                  <details className="group">
-                                    <summary className="list-none cursor-pointer inline-flex items-center rounded-md border border-slate-300 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50">
-                                      Delete ▾
-                                    </summary>
-
-                                        <div className="absolute right-0 mt-1 w-32 rounded-md border border-slate-200 bg-white shadow-md z-10 text-xs 
-dark:border-slate-700 dark:bg-slate-800">
-                                          <button
-                                            type="button"
-                                            disabled={deleteBusyId === message._id}
-                                            onClick={() =>
-                                              void handleDeleteMessage(message._id, "me")
-                                            }
-                                            className="block w-full text-left px-2 py-1 text-slate-700 hover:bg-slate-100 
-dark:text-slate-200 dark:hover:bg-slate-700 disabled:opacity-60"
-                                          >
-                                            Delete for me
-                                          </button>
-
-                                          {message.sender_id === currentUserId && (
-                                            <button
-                                              type="button"
-                                              disabled={deleteBusyId === message._id}
-                                              onClick={() =>
-                                                void handleDeleteMessage(message._id, "everyone")
-                                              }
-                                              className="block w-full text-left px-2 py-1 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
-                                            >
-                                              Delete for everyone
-                                            </button>
-                                          )}
-                                        </div>
-                                      </details>
-                                    </div>
-                          </div>
-                        );
-                      })}
-                      <div ref={scrollAnchorRef} />
-                    </>
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <div className="text-center max-w-sm">
-                        <p className="text-xs font-medium text-slate-500">
-                          No messages yet.
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          Start the conversation with a quick update or
-                          question for the group.
-                        </p>
+                            Retry
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : hasMessages ? (
+                      <>
+                        {messages.map((message) => {
+                          const isMine = message.sender_id === currentUserId;
+                          return (
+                            <div
+                              key={message._id}
+                              className={`flex gap-2 ${isMine ? "justify-end" : "justify-start"} animate-[${isMine ? "slideInRight" : "slideInLeft"}_0.3s_ease-out]`}
+                            >
+                              {!isMine && (
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 text-[9px] font-bold text-white mt-auto">
+                                  {(message.sender_name || message.sender_id).charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div
+                                className={`inline-flex max-w-[75%] flex-col px-4 py-2.5 text-sm shadow-sm transition-all duration-200 ${
+                                  isMine
+                                    ? "rounded-2xl rounded-br-sm bg-gradient-to-r from-indigo-600 to-blue-600 text-white"
+                                    : "rounded-2xl rounded-bl-sm border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3 mb-0.5">
+                                  <span className={`text-[10px] font-semibold uppercase tracking-wider ${isMine ? "text-blue-100" : "text-slate-400 dark:text-slate-500"}`}>
+                                    {isMine ? "You" : message.sender_name || message.sender_id}
+                                  </span>
+                                  <span className={`text-[10px] ${isMine ? "text-blue-200/70" : "text-slate-400 dark:text-slate-500"}`}>
+                                    {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                </div>
+                                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                                  {message.content}
+                                </p>
+                              </div>
+                              {isMine && (
+                                <div className="relative mt-auto">
+                                  <details className="group">
+                                    <summary className="list-none cursor-pointer inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700/60 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                      </svg>
+                                    </summary>
+                                    <div className="absolute right-0 mt-1 w-36 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-10 text-xs overflow-hidden animate-[scaleIn_0.15s_ease-out]">
+                                      <button
+                                        type="button"
+                                        disabled={deleteBusyId === message._id}
+                                        onClick={() => void handleDeleteMessage(message._id, "me")}
+                                        className="block w-full text-left px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-60 transition-colors"
+                                      >
+                                        Delete for me
+                                      </button>
+                                      {message.sender_id === currentUserId && (
+                                        <button
+                                          type="button"
+                                          disabled={deleteBusyId === message._id}
+                                          onClick={() => void handleDeleteMessage(message._id, "everyone")}
+                                          className="block w-full text-left px-3 py-2 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-60 transition-colors"
+                                        >
+                                          Delete for everyone
+                                        </button>
+                                      )}
+                                    </div>
+                                  </details>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <div ref={scrollAnchorRef} />
+                      </>
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <div className="text-center max-w-sm animate-[fadeSlideIn_0.5s_ease-out]">
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">No messages yet.</p>
+                          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Start the conversation!</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {showScrollBtn && (
+                    <button
+                      type="button"
+                      onClick={scrollToBottom}
+                      className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 transition-all animate-[scaleIn_0.2s_ease-out]"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                    </button>
                   )}
                 </div>
 
+                {/* Composer */}
                 <form
                   onSubmit={handleComposerSubmit}
-                  className="mt-3 flex items-end gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800"
+                  className="mt-3 flex items-end gap-2 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 px-4 py-3 shadow-sm"
                 >
                   <div className="flex-1">
-                    <label className="sr-only" htmlFor="chat-composer">
-                      Message group
-                    </label>
+                    <label className="sr-only" htmlFor="chat-composer">Message group</label>
                     <textarea
                       id="chat-composer"
                       value={composerValue}
-                      onChange={(event) =>
-                        setComposerValue(event.target.value)
-                      }
+                      onChange={(event) => setComposerValue(event.target.value)}
                       onKeyDown={handleComposerKeyDown}
                       rows={2}
-                      className="block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0 dark:text-white dark:placeholder:text-slate-500"
-                      placeholder="Type a message to the group…"
+                      className="block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-0"
+                      placeholder="Type a message…"
                       disabled={composerState === "sending"}
                     />
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <button
                       type="submit"
-                      disabled={
-                        composerState === "sending" || !composerValue.trim()
-                      }
-                      className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      disabled={composerState === "sending" || !composerValue.trim()}
+                      className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                     >
-                      {composerState === "sending" ? "Sending…" : "Send"}
+                      {composerState === "sending" ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-3 w-3 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />
+                          Sending…
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                          </svg>
+                          Send
+                        </span>
+                      )}
                     </button>
-                    <p className="text-[10px] text-slate-400">
-                      Press Enter to send, Shift+Enter for a new line.
-                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Enter · Shift+Enter ↵</p>
                   </div>
                 </form>
               </>
@@ -591,231 +662,139 @@ dark:text-slate-200 dark:hover:bg-slate-700 disabled:opacity-60"
               <div className="flex flex-1 items-center justify-center">
                 <EmptyState
                   title="Select or create a group"
-                  description="Choose an existing group from the left, or create a new one to start collaborating."
+                  description="Choose a group from the left, or create one to start collaborating."
                 />
               </div>
             )}
           </section>
         </div>
 
+        {/* Create Group Modal */}
         <Modal
           open={isCreateGroupOpen}
-          onClose={() => {
-            if (!createGroupSubmitting) {
-              setIsCreateGroupOpen(false);
-              setCreateGroupError(null);
-            }
-          }}
-          title="Create chat group"
-          description="Set up a focused space for ongoing collaboration."
+          onClose={() => { if (!createGroupSubmitting) { setIsCreateGroupOpen(false); setCreateGroupError(null); } }}
+          title="Create Chat Group"
+          description="Set up a focused space for collaboration."
           footer={
             <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!createGroupSubmitting) {
-                    setIsCreateGroupOpen(false);
-                    setCreateGroupError(null);
-                  }
-                }}
-                className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                disabled={createGroupSubmitting}
-              >
+              <button type="button" onClick={() => { if (!createGroupSubmitting) { setIsCreateGroupOpen(false); setCreateGroupError(null); } }}
+                className="inline-flex items-center rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" disabled={createGroupSubmitting}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                form="create-chat-group-form"
-                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled={createGroupSubmitting}
-              >
+              <button type="submit" form="create-chat-group-form"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-xs font-medium text-white shadow-md hover:shadow-indigo-500/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed" disabled={createGroupSubmitting}>
+                {createGroupSubmitting && <span className="h-3 w-3 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />}
                 {createGroupSubmitting ? "Creating…" : "Create group"}
               </button>
             </div>
           }
         >
-          <form
-            id="create-chat-group-form"
-            onSubmit={handleCreateGroupSubmit}
-            className="space-y-3"
-          >
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                Group name
-              </label>
-              <input
-                type="text"
-                value={createGroupPayload.group_name}
-                onChange={(event) =>
-                  setCreateGroupPayload((prev) => ({
-                    ...prev,
-                    group_name: event.target.value,
-                  }))
-                }
-                className="block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400"
-                placeholder="e.g. Engineering Standup, HR Announcements"
-                required
-              />
+          <form id="create-chat-group-form" onSubmit={handleCreateGroupSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Group name</label>
+              <input type="text" value={createGroupPayload.group_name} onChange={(e) => setCreateGroupPayload((p) => ({ ...p, group_name: e.target.value }))} className={inputClasses} placeholder="e.g. Engineering Standup" required />
             </div>
-
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                Group category
-              </label>
-              <select
-                value={createGroupPayload.group_category}
-                onChange={(event) =>
-                  setCreateGroupPayload((prev) => ({
-                    ...prev,
-                    group_category: event.target.value as GroupCategory,
-                  }))
-                }
-                className="block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="organizational">Organizational</option>
-                <option value="project">Project</option>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Category</label>
+              <select value={createGroupPayload.group_category} onChange={(e) => setCreateGroupPayload((p) => ({ ...p, group_category: e.target.value as GroupCategory }))} className={inputClasses}>
+                <option value="organizational">🏢 Organizational</option>
+                <option value="project">🚀 Project</option>
               </select>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Organizational groups are typically created by admins, while
-                project groups are suitable for cross-functional teams.
-              </p>
             </div>
-
-            {createGroupError && (
-              <p className="text-xs text-rose-600">{createGroupError}</p>
-            )}
+            {createGroupError && <div className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-900/20 px-3 py-2"><p className="text-xs text-rose-600 dark:text-rose-400">{createGroupError}</p></div>}
           </form>
         </Modal>
 
-        <Modal
-          open={isMembersOpen}
-          onClose={() => setIsMembersOpen(false)}
-          title="Group members"
-          description="People in this chat group."
-          footer={
-            <button
-              type="button"
-              onClick={() => setIsMembersOpen(false)}
-              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700"
-            >
-              Close
-            </button>
-          }
+        {/* Members Modal */}
+        <Modal open={isMembersOpen} onClose={() => setIsMembersOpen(false)} title="Group Members" description="People in this chat group."
+          footer={<button type="button" onClick={() => setIsMembersOpen(false)} className="inline-flex items-center rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-xs font-medium text-white shadow-md transition-all">Close</button>}
         >
           {membersLoading ? (
-            <p className="text-xs text-slate-500">Loading…</p>
-          ) : membersError ? (
-            <p className="text-xs text-rose-600">{membersError}</p>
-          ) : groupMembers.length === 0 ? (
-            <p className="text-xs text-slate-500">No members found.</p>
-          ) : (
-            <ul className="max-h-72 space-y-2 overflow-y-auto text-sm">
-              {groupMembers.map((m) => (
-                <li
-                  key={m.user_id}
-                  className="flex items-center justify-between gap-2 rounded-md border border-slate-200 px-2 py-1.5 dark:border-slate-600"
-                >
-                  <div>
-                    <p className="font-medium text-slate-900 dark:text-slate-100">
-                      {m.name || m.email || m.user_id}
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {m.username ? `@${m.username}` : m.email}
-                    </p>
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse flex items-center gap-3 rounded-xl p-2">
+                  <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-3 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+                    <div className="h-2 w-1/3 rounded bg-slate-200 dark:bg-slate-700" />
                   </div>
-                  <span className="text-[10px] uppercase text-slate-500">
-                    {m.role}
-                  </span>
+                </div>
+              ))}
+            </div>
+          ) : membersError ? (
+            <p className="text-xs text-rose-600 dark:text-rose-400">{membersError}</p>
+          ) : groupMembers.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400">No members found.</p>
+          ) : (
+            <ul className="max-h-72 space-y-2 overflow-y-auto custom-scrollbar">
+              {groupMembers.map((m) => (
+                <li key={m.user_id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-700/60 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-blue-500 text-[10px] font-bold text-white">
+                      {(m.name || m.email || m.user_id).charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{m.name || m.email || m.user_id}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">{m.username ? `@${m.username}` : m.email}</p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/50 px-2 py-0.5 text-[10px] font-medium uppercase text-slate-500 dark:text-slate-400">{m.role}</span>
                 </li>
               ))}
             </ul>
           )}
         </Modal>
 
-        <Modal
-          open={isAddMemberOpen}
-          onClose={() => {
-            if (!addMemberSubmitting) {
-              setIsAddMemberOpen(false);
-              setAddMemberError(null);
-            }
-          }}
-          title="Add member to group"
-          description="Select a colleague from your company to add to this group."
+        {/* Add Member Modal */}
+        <Modal open={isAddMemberOpen}
+          onClose={() => { if (!addMemberSubmitting) { setIsAddMemberOpen(false); setAddMemberError(null); } }}
+          title="Add Member"
+          description="Select a colleague to add to this group."
           footer={
             <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!addMemberSubmitting) {
-                    setIsAddMemberOpen(false);
-                    setAddMemberError(null);
-                  }
-                }}
-                className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                disabled={addMemberSubmitting}
-              >
+              <button type="button" onClick={() => { if (!addMemberSubmitting) { setIsAddMemberOpen(false); setAddMemberError(null); } }}
+                className="inline-flex items-center rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors" disabled={addMemberSubmitting}>
                 Cancel
               </button>
-              <button
-                type="submit"
-                form="add-member-form"
-                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled={addMemberSubmitting || !addMemberUserId}
-              >
+              <button type="submit" form="add-member-form"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2 text-xs font-medium text-white shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed" disabled={addMemberSubmitting || !addMemberUserId}>
+                {addMemberSubmitting && <span className="h-3 w-3 rounded-full border-2 border-white/70 border-t-transparent animate-spin" />}
                 {addMemberSubmitting ? "Adding…" : "Add member"}
               </button>
             </div>
           }
         >
-          <form
-            id="add-member-form"
-            onSubmit={async (e: FormEvent) => {
-              e.preventDefault();
-              if (!selectedGroupId || !addMemberUserId || addMemberSubmitting) return;
-              setAddMemberSubmitting(true);
-              setAddMemberError(null);
-              try {
-                await addMemberToGroup(selectedGroupId, { user_id: addMemberUserId });
-                setIsAddMemberOpen(false);
-                setAddMemberUserId("");
-              } catch (err: unknown) {
-                const msg = err && typeof err === "object" && "response" in err
-                  ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-                  : "Failed to add member";
-                setAddMemberError(typeof msg === "string" ? msg : "Failed to add member");
-              } finally {
-                setAddMemberSubmitting(false);
-              }
-            }}
-            className="space-y-3"
-          >
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                Select user
-              </label>
-              <select
-                value={addMemberUserId}
-                onChange={(e) => setAddMemberUserId(e.target.value)}
-                className="block w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-              >
+          <form id="add-member-form" onSubmit={async (e: FormEvent) => {
+            e.preventDefault();
+            if (!selectedGroupId || !addMemberUserId || addMemberSubmitting) return;
+            setAddMemberSubmitting(true);
+            setAddMemberError(null);
+            try {
+              await addMemberToGroup(selectedGroupId, { user_id: addMemberUserId });
+              setIsAddMemberOpen(false);
+              setAddMemberUserId("");
+            } catch (err: unknown) {
+              const msg = err && typeof err === "object" && "response" in err
+                ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+                : "Failed to add member";
+              setAddMemberError(typeof msg === "string" ? msg : "Failed to add member");
+            } finally {
+              setAddMemberSubmitting(false);
+            }
+          }} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Select user</label>
+              <select value={addMemberUserId} onChange={(e) => setAddMemberUserId(e.target.value)} className={inputClasses}>
                 <option value="">Choose a colleague…</option>
-                {companyUsers
-                  .filter((u) => u.user_id !== currentUserId)
-                  .map((u) => (
-                    <option key={u.user_id} value={u.user_id}>
-                      {u.display || u.name || u.email}
-                    </option>
-                  ))}
+                {companyUsers.filter((u) => u.user_id !== currentUserId).map((u) => (
+                  <option key={u.user_id} value={u.user_id}>{u.display || u.name || u.email}</option>
+                ))}
               </select>
             </div>
-            {addMemberError && (
-              <p className="text-xs text-rose-600">{addMemberError}</p>
-            )}
+            {addMemberError && <div className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-900/20 px-3 py-2"><p className="text-xs text-rose-600 dark:text-rose-400">{addMemberError}</p></div>}
           </form>
         </Modal>
       </Card>
     </div>
   );
 }
-
