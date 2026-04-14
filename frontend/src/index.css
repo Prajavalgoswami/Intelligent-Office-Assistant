@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Google Fonts now loaded via <link> in index.html for reliability */
+
 
 @tailwind base;
 @tailwind components;
@@ -9,9 +10,25 @@
    ═══════════════════════════════════════════════ */
 html, body, #root {
   height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 17px;
+  letter-spacing: -0.012em;
+  line-height: 1.55;
+}
+
+/* Heading scale — bigger, bolder, tighter */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+p, li, label, span, td, th, input, textarea, select, button {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 }
 
 *, *::before, *::after {
@@ -208,24 +225,117 @@ html, body, #root {
    Utility Classes
    ═══════════════════════════════════════════════ */
 
-/* Glowing brand button */
+/* ── Button system ──────────────────────────────────────── */
+
+/* Glowing brand button — used on Login */
 .btn-brand {
   background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%);
   background-size: 200% 200%;
   animation: gradientShift 4s ease infinite;
   color: white;
-  font-weight: 600;
-  border-radius: 12px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.9375rem;   /* 15px */
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border-radius: 14px;
+  padding: 0.875rem 1.75rem;  /* 14px 28px */
   transition: all 0.25s ease;
-  box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+  box-shadow: 0 4px 18px rgba(99,102,241,0.38);
 }
 .btn-brand:hover {
-  box-shadow: 0 6px 20px rgba(99,102,241,0.5);
-  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(99,102,241,0.52);
+  transform: translateY(-2px);
 }
 .btn-brand:active {
   transform: translateY(0px);
   box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+
+/* Primary action button (indigo gradient) */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: white;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.875rem;  /* 14px */
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;  /* 12px 24px */
+  border: none;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.30);
+}
+.btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(99,102,241,0.45);
+  transform: translateY(-1px);
+}
+.btn-primary:active  { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.58; cursor: not-allowed; transform: none !important; }
+
+/* Secondary / outline button */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: transparent;
+  color: #4f46e5;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #c7d2fe;
+  cursor: pointer;
+  transition: all 0.22s ease;
+}
+.btn-secondary:hover {
+  background: #eef2ff;
+  border-color: #818cf8;
+}
+.dark .btn-secondary {
+  color: #a5b4fc;
+  border-color: rgba(99,102,241,0.35);
+}
+.dark .btn-secondary:hover {
+  background: rgba(99,102,241,0.12);
+  border-color: #6366f1;
+}
+.btn-secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Ghost / text button */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: transparent;
+  color: #64748b;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 0.625rem 1.25rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-ghost:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #e2e8f0;
+}
+.dark .btn-ghost { color: #94a3b8; }
+.dark .btn-ghost:hover {
+  background: rgba(255,255,255,0.07);
+  color: #f1f5f9;
+  border-color: rgba(255,255,255,0.1);
 }
 
 /* Skeleton shimmer */
@@ -317,4 +427,92 @@ html, body, #root {
 /* Page content entrance */
 .page-enter {
   animation: fadeSlideIn 0.4s ease-out both;
+}
+
+/* ═══════════════════════════════════════════════
+   Global Button Enhancements
+   Layout-safe: buttons grow in-place, no overlap
+   ═══════════════════════════════════════════════ */
+
+/*
+ * All inline-flex rounded-xl buttons get a minimum height + sharper font.
+ * Excludes fixed-size icon buttons (w-6 → w-10) to avoid reshaping controls.
+ */
+button.inline-flex.rounded-xl:not([class*="w-6"]):not([class*="w-7"]):not([class*="w-8"]):not([class*="w-9"]):not([class*="w-10"]),
+a.inline-flex.rounded-xl:not([class*="w-6"]):not([class*="w-7"]):not([class*="w-8"]):not([class*="w-9"]):not([class*="w-10"]) {
+  min-height: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+/*
+ * Gradient action buttons (all colour variants):
+ * extra vertical padding + slightly larger text — no layout break.
+ */
+button.rounded-xl[class*="from-indigo"],
+button.rounded-xl[class*="from-blue"],
+button.rounded-xl[class*="from-rose"],
+button.rounded-xl[class*="from-emerald"],
+button.rounded-xl[class*="from-amber"],
+button.rounded-xl[class*="from-violet"],
+button.rounded-xl[class*="from-sky"],
+a.rounded-xl[class*="from-indigo"],
+a.rounded-xl[class*="from-emerald"],
+a.rounded-xl[class*="from-rose"] {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+/*
+ * Outline / border-only buttons — matching height & font.
+ */
+button.rounded-xl[class*="border"]:not([class*="from-"]):not([class*="bg-gradient"]),
+a.rounded-xl[class*="border"]:not([class*="from-"]):not([class*="bg-gradient"]) {
+  min-height: 2.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.007em;
+}
+
+/*
+ * Smaller rounded-lg controls (Add, Members, Refresh…)
+ */
+button.inline-flex.rounded-lg:not([class*="w-"]):not([class*="h-"]):not([class*="rounded-full"]) {
+  min-height: 2rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+/* ═══════════════════════════════════════════════
+   Global Typography Refinements
+   ═══════════════════════════════════════════════ */
+
+/* Inputs & selects */
+input, textarea, select {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+  letter-spacing: -0.005em;
+}
+
+/* Sidebar nav labels */
+nav a, nav button {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Sharper small-caps labels (uppercase tracking labels) */
+.uppercase.tracking-widest,
+.uppercase.tracking-wider {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-weight: 700;
+}
+
+/* Tabular numbers for stats */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }

@@ -148,7 +148,7 @@ export function EmployeeLogin() {
             <span className="text-blue-200">workspace</span><br />
             awaits.
           </h1>
-          <p className="text-white/70 text-sm leading-relaxed max-w-xs">
+          <p className="text-white/70 text-base leading-relaxed max-w-xs">
             Everything you need to stay productive, connected, and organized — all in one place.
           </p>
 
@@ -163,7 +163,7 @@ export function EmployeeLogin() {
                 <span className="w-7 h-7 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center text-sm flex-shrink-0">
                   {f.icon}
                 </span>
-                <span className="text-white/80 text-xs font-medium">{f.label}</span>
+                <span className="text-white/90 text-sm font-semibold">{f.label}</span>
               </li>
             ))}
           </ul>
@@ -198,10 +198,10 @@ export function EmployeeLogin() {
         >
           {/* Heading */}
           <div className="mb-8">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white leading-tight">
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white leading-tight tracking-tight">
               Welcome back 👋
             </h2>
-            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-base text-slate-500 dark:text-slate-400 leading-relaxed">
               Sign in to your employee account to continue.
             </p>
           </div>
@@ -209,7 +209,7 @@ export function EmployeeLogin() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Username field */}
             <div className={`transition-all duration-500 delay-100 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-              <label htmlFor="emp-username" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+              <label htmlFor="emp-username" className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 tracking-wide">
                 Username
               </label>
               <div className="relative">
@@ -225,10 +225,10 @@ export function EmployeeLogin() {
                   autoComplete="username"
                   required
                   className="
-                    w-full rounded-xl border pl-10 pr-4 py-3 text-sm
+                    w-full rounded-xl border pl-11 pr-4 py-4 text-[1rem]
                     bg-white dark:bg-[#1e293b]
                     border-slate-300 dark:border-white/10
-                    text-slate-900 dark:text-white
+                    text-slate-900 dark:text-white font-medium
                     placeholder:text-slate-400 dark:placeholder:text-slate-600
                     input-focus
                     transition-all duration-200
@@ -240,7 +240,7 @@ export function EmployeeLogin() {
 
             {/* Password field */}
             <div className={`transition-all duration-500 delay-150 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-              <label htmlFor="emp-password" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 uppercase tracking-wide">
+              <label htmlFor="emp-password" className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 tracking-wide">
                 Password
               </label>
               <div className="relative">
@@ -256,10 +256,10 @@ export function EmployeeLogin() {
                   autoComplete="current-password"
                   required
                   className="
-                    w-full rounded-xl border pl-10 pr-12 py-3 text-sm
+                    w-full rounded-xl border pl-11 pr-12 py-4 text-[1rem]
                     bg-white dark:bg-[#1e293b]
                     border-slate-300 dark:border-white/10
-                    text-slate-900 dark:text-white
+                    text-slate-900 dark:text-white font-medium
                     placeholder:text-slate-400 dark:placeholder:text-slate-600
                     input-focus
                     transition-all duration-200
@@ -295,8 +295,10 @@ export function EmployeeLogin() {
                 disabled={loading}
                 id="emp-login-submit"
                 className="
-                  btn-brand w-full py-3.5 px-6 rounded-xl text-sm font-bold
-                  flex items-center justify-center gap-2.5
+                  btn-brand w-full rounded-xl
+                  py-4 px-6
+                  text-lg font-extrabold tracking-tight
+                  flex items-center justify-center gap-3
                   disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none
                 "
               >
@@ -338,7 +340,7 @@ export function EmployeeLogin() {
           />
 
           {/* Footer note */}
-          <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-600 leading-relaxed">
+          <p className="mt-6 text-center text-sm text-slate-400 dark:text-slate-600 leading-relaxed">
             Use your admin-assigned credentials or your company Google account.
           </p>
         </div>

@@ -64,24 +64,32 @@ async def get_today_tasks(current_user=Depends(get_current_user)):
   pending_count = 0
 
   for t in items:
-    status = t.get("status", "")
+    task_status = t.get("status", "")
     due = t.get("due")
+    completed_ts = t.get("completed")  # RFC3339 string when task was completed
 
-    # Google Tasks `due` is an RFC3339 string; we only care about the date part.
     is_today = False
+
     if due:
+      # Task has a due date — include if it's due today
       try:
         is_today = due[:10] == today_str
       except Exception:
         is_today = False
+    elif task_status == "completed" and completed_ts:
+      # No due date but completed — include if completed today
+      try:
+        is_today = completed_ts[:10] == today_str
+      except Exception:
+        is_today = False
     else:
-      # Tasks without a due date but not completed are treated as "today / pending"
-      is_today = status != "completed"
+      # No due date, not completed — treat as pending today
+      is_today = True
 
     if not is_today:
       continue
 
-    if status == "completed":
+    if task_status == "completed":
       completed_count += 1
     else:
       pending_count += 1

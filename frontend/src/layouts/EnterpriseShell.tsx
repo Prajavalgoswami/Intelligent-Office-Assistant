@@ -94,6 +94,11 @@ export function EnterpriseShell({
     }
   }, [isDarkMode]);
 
+  // Clear any stale collapsed state from old sessions
+  useEffect(() => {
+    localStorage.removeItem("employee_sidebarCollapsed");
+  }, []);
+
   // Close mobile menu on route change
   useEffect(() => {
     setShowMobileMenu(false);
@@ -108,8 +113,8 @@ export function EnterpriseShell({
     }
   };
 
-  const sidebarWidth = isCollapsed ? "lg:w-20" : "lg:w-72";
-  const contentMargin = isCollapsed ? "lg:ml-20" : "lg:ml-72";
+  const sidebarWidth = isCollapsed ? "lg:w-[72px]" : "lg:w-64";
+  const contentMargin = isCollapsed ? "lg:ml-[72px]" : "lg:ml-64";
 
   const initials = userDisplayName
     .split(" ")
@@ -128,7 +133,7 @@ export function EnterpriseShell({
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 flex flex-col
-          w-72 ${sidebarWidth}
+          ${isCollapsed ? "w-[72px]" : "w-64"} ${sidebarWidth}
           transition-all duration-300 ease-in-out
           ${isDarkMode
             ? "bg-[#0f172a] border-r border-white/[0.06]"
@@ -190,8 +195,8 @@ export function EnterpriseShell({
                 end={link.exact ?? false}
                 title={isCollapsed ? link.label : undefined}
                 className={({ isActive }) =>
-                  `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 font-medium text-sm
-                   ${isCollapsed ? "lg:justify-center lg:px-0 lg:py-2.5" : ""}
+                 `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 font-semibold text-[13px]
+                   ${isCollapsed ? "lg:justify-center lg:px-0 lg:py-3" : ""}
                    ${isActive
                     ? isDarkMode
                       ? "bg-indigo-500/10 text-indigo-300 sidebar-active-glow"
